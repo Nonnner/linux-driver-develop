@@ -55,7 +55,7 @@ static pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;
 static user_account_t user_db[MAX_CLIENTS];
 static int user_count = 0;
 static pthread_mutex_t user_db_mutex = PTHREAD_MUTEX_INITIALIZER;
-static int server_running = 1;
+static volatile sig_atomic_t server_running = 1;
 static int server_socket = -1;
 
 /* Function prototypes */
@@ -388,7 +388,7 @@ static void *client_handler(void *arg)
             }
             
             /* Decrypt message if crypto device is available */
-            unsigned char decrypted[MAX_MESSAGE_LEN];
+            unsigned char decrypted[MAX_MESSAGE_LEN + 1];
             size_t decrypted_len = MAX_MESSAGE_LEN;
             char *message_text;
             
@@ -397,12 +397,17 @@ static void *client_handler(void *arg)
                 struct crypto_op_data iv_op;
                 iv_op.in_data = msg.payload.chat_msg.iv;
                 iv_op.in_len = AES_BLOCK_SIZE;
-                ioctl(client->crypto_fd, IOCTL_SET_IV, &iv_op);
+                if (ioctl(client->crypto_fd, IOCTL_SET_IV, &iv_op) < 0) {
+                    fprintf(stderr, "Warning: Failed to set IV for decryption\n");
+                }
                 
                 if (decrypt_message(client, msg.payload.chat_msg.msg_data,
                                     msg.payload.chat_msg.msg_len,
                                     decrypted, &decrypted_len) == 0) {
-                    decrypted[decrypted_len] = '\0';
+                    if (decrypted_len < MAX_MESSAGE_LEN + 1)
+                        decrypted[decrypted_len] = '\0';
+                    else
+                        decrypted[MAX_MESSAGE_LEN] = '\0';
                     message_text = (char *)decrypted;
                 } else {
                     message_text = (char *)msg.payload.chat_msg.msg_data;
@@ -528,16 +533,29 @@ static int authenticate_user(client_info_t *client, const char *username,
         /* Use random data for session key */
         FILE *urandom = fopen("/dev/urandom", "r");
         if (urandom) {
-            fread(client->session_key, 1, AES_KEY_SIZE, urandom);
-            fread(client->current_iv, 1, AES_BLOCK_SIZE, urandom);
+            size_t read_key = fread(client->session_key, 1, AES_KEY_SIZE, urandom);
+            size_t read_iv = fread(client->current_iv, 1, AES_BLOCK_SIZE, urandom);
             fclose(urandom);
+            
+            if (read_key != AES_KEY_SIZE || read_iv != AES_BLOCK_SIZE) {
+                fprintf(stderr, "Warning: Could not read enough random data for session key\n");
+                /* Initialize with zeros if random read failed */
+                memset(client->session_key, 0, AES_KEY_SIZE);
+                memset(client->current_iv, 0, AES_BLOCK_SIZE);
+            }
+        } else {
+            fprintf(stderr, "Warning: Could not open /dev/urandom\n");
+            memset(client->session_key, 0, AES_KEY_SIZE);
+            memset(client->current_iv, 0, AES_BLOCK_SIZE);
         }
         
         /* Set the key in the driver */
         struct crypto_op_data key_op;
         key_op.in_data = client->session_key;
         key_op.in_len = AES_KEY_SIZE;
-        ioctl(client->crypto_fd, IOCTL_SET_KEY, &key_op);
+        if (ioctl(client->crypto_fd, IOCTL_SET_KEY, &key_op) < 0) {
+            fprintf(stderr, "Warning: Failed to set session key in crypto device\n");
+        }
     }
     
     return 0;
@@ -608,7 +626,9 @@ static void broadcast_message(client_info_t *sender, const char *message, size_t
                     struct crypto_op_data iv_op;
                     iv_op.out_data = msg.payload.chat_msg.iv;
                     iv_op.out_len = AES_BLOCK_SIZE;
-                    ioctl(clients[i].crypto_fd, IOCTL_GET_IV, &iv_op);
+                    if (ioctl(clients[i].crypto_fd, IOCTL_GET_IV, &iv_op) < 0) {
+                        fprintf(stderr, "Warning: Failed to get IV\n");
+                    }
                 } else {
                     /* Fallback to unencrypted */
                     memcpy(msg.payload.chat_msg.msg_data, message, len);
@@ -657,7 +677,9 @@ static void send_private_message(client_info_t *sender, const char *to_user,
                     struct crypto_op_data iv_op;
                     iv_op.out_data = msg.payload.chat_msg.iv;
                     iv_op.out_len = AES_BLOCK_SIZE;
-                    ioctl(clients[i].crypto_fd, IOCTL_GET_IV, &iv_op);
+                    if (ioctl(clients[i].crypto_fd, IOCTL_GET_IV, &iv_op) < 0) {
+                        fprintf(stderr, "Warning: Failed to get IV\n");
+                    }
                 } else {
                     memcpy(msg.payload.chat_msg.msg_data, message, len);
                     msg.payload.chat_msg.msg_len = len;

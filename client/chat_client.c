@@ -32,7 +32,7 @@
 static int socket_fd = -1;
 static int crypto_fd = -1;
 static int is_logged_in = 0;
-static int client_running = 1;
+static volatile sig_atomic_t client_running = 1;
 static char current_user[MAX_USERNAME_LEN];
 static unsigned char session_key[AES_KEY_SIZE];
 static unsigned char current_iv[AES_BLOCK_SIZE];
@@ -346,7 +346,9 @@ static int do_login(const char *username, const char *password)
         struct crypto_op_data key_op;
         key_op.in_data = session_key;
         key_op.in_len = AES_KEY_SIZE;
-        ioctl(crypto_fd, IOCTL_SET_KEY, &key_op);
+        if (ioctl(crypto_fd, IOCTL_SET_KEY, &key_op) < 0) {
+            fprintf(stderr, "Warning: Failed to set session key in crypto device\n");
+        }
     }
 
     return 0;
@@ -403,7 +405,9 @@ static int send_chat_message(const char *to_user, const char *message)
             struct crypto_op_data iv_op;
             iv_op.out_data = msg.payload.chat_msg.iv;
             iv_op.out_len = AES_BLOCK_SIZE;
-            ioctl(crypto_fd, IOCTL_GET_IV, &iv_op);
+            if (ioctl(crypto_fd, IOCTL_GET_IV, &iv_op) < 0) {
+                fprintf(stderr, "Warning: Failed to get IV\n");
+            }
         } else {
             /* Fallback to unencrypted */
             memcpy(msg.payload.chat_msg.msg_data, message, msg_len);
@@ -466,7 +470,7 @@ static void *receive_handler(void *arg)
         case MSG_TYPE_PRIVATE_MSG:
         case MSG_TYPE_CHAT_MSG:
             {
-                unsigned char decrypted[MAX_MESSAGE_LEN];
+                unsigned char decrypted[MAX_MESSAGE_LEN + 1];
                 size_t decrypted_len = MAX_MESSAGE_LEN;
                 char *message_text;
 
@@ -476,19 +480,30 @@ static void *receive_handler(void *arg)
                     struct crypto_op_data iv_op;
                     iv_op.in_data = msg.payload.chat_msg.iv;
                     iv_op.in_len = AES_BLOCK_SIZE;
-                    ioctl(crypto_fd, IOCTL_SET_IV, &iv_op);
+                    if (ioctl(crypto_fd, IOCTL_SET_IV, &iv_op) < 0) {
+                        fprintf(stderr, "Warning: Failed to set IV for decryption\n");
+                    }
 
                     if (decrypt_msg(msg.payload.chat_msg.msg_data,
                                     msg.payload.chat_msg.msg_len,
                                     decrypted, &decrypted_len) == 0) {
-                        decrypted[decrypted_len] = '\0';
+                        if (decrypted_len < MAX_MESSAGE_LEN + 1)
+                            decrypted[decrypted_len] = '\0';
+                        else
+                            decrypted[MAX_MESSAGE_LEN] = '\0';
                         message_text = (char *)decrypted;
                     } else {
-                        msg.payload.chat_msg.msg_data[msg.payload.chat_msg.msg_len] = '\0';
+                        size_t msg_len = msg.payload.chat_msg.msg_len;
+                        if (msg_len >= MAX_MESSAGE_LEN)
+                            msg_len = MAX_MESSAGE_LEN - 1;
+                        msg.payload.chat_msg.msg_data[msg_len] = '\0';
                         message_text = (char *)msg.payload.chat_msg.msg_data;
                     }
                 } else {
-                    msg.payload.chat_msg.msg_data[msg.payload.chat_msg.msg_len] = '\0';
+                    size_t msg_len = msg.payload.chat_msg.msg_len;
+                    if (msg_len >= MAX_MESSAGE_LEN)
+                        msg_len = MAX_MESSAGE_LEN - 1;
+                    msg.payload.chat_msg.msg_data[msg_len] = '\0';
                     message_text = (char *)msg.payload.chat_msg.msg_data;
                 }
 
