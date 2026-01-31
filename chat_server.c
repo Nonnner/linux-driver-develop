@@ -136,8 +136,6 @@ int aes_encrypt_msg(const unsigned char *plaintext, unsigned int len, unsigned c
         return -1;
     }
     
-    /* Pad to 16 byte boundary */
-    unsigned int padded_len = ((len + 15) / 16) * 16;
     memcpy(data.input, plaintext, len);
     data.input_len = len;
     memcpy(data.key, aes_key, AES_KEY_SIZE);
@@ -288,6 +286,7 @@ void *handle_client(void *arg)
     /* Authenticate */
     if (authenticate_user(username, password)) {
         strncpy(client->username, username, USERNAME_SIZE - 1);
+        client->username[USERNAME_SIZE - 1] = '\0';
         client->authenticated = 1;
         send(client->socket, "AUTH_SUCCESS\n", 13, 0);
         printf("User %s authenticated successfully\n", username);
@@ -337,7 +336,7 @@ cleanup:
 }
 
 /* Main server function */
-int main(int argc, char *argv[])
+int main(void)
 {
     int server_socket, client_socket;
     struct sockaddr_in server_addr, client_addr;
