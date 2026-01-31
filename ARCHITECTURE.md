@@ -108,7 +108,7 @@
 ```
 linux-driver-develop/
 ├── Makefile              # Main build file
-├── README.md             # This file
+├── README.md             # Project description
 ├── ARCHITECTURE.md       # This documentation
 ├── common/               # Shared headers
 │   ├── crypto_user.h     # Crypto driver interface (user space)
@@ -117,12 +117,61 @@ linux-driver-develop/
 │   ├── crypto_driver.c   # Driver implementation
 │   ├── crypto_driver.h   # Driver header (kernel space)
 │   └── Makefile
-├── server/               # Chat server
+├── server/               # TCP Chat server
 │   ├── chat_server.c     # Server implementation
 │   └── Makefile
-└── client/               # Chat client
-    ├── chat_client.c     # Client implementation
-    └── Makefile
+├── client/               # Terminal chat client
+│   ├── chat_client.c     # Client implementation
+│   └── Makefile
+├── backend/              # Web backend (Python Flask)
+│   ├── chat_backend.py   # Flask + SocketIO server
+│   └── requirements.txt  # Python dependencies
+└── web/                  # Web UI
+    ├── templates/
+    │   └── index.html    # Main HTML template
+    └── static/
+        ├── css/
+        │   └── style.css # Stylesheet
+        └── js/
+            └── chat.js   # Client-side JavaScript
+```
+
+## Kiến trúc Web / Web Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                              WEB LAYER                                   │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│   ┌──────────────────┐     WebSocket      ┌──────────────────┐          │
+│   │  Web Browser     │◄──────────────────►│  Flask Backend   │          │
+│   │  (HTML/CSS/JS)   │                    │  (chat_backend)  │          │
+│   │  - Login form    │                    │  - WebSocket     │          │
+│   │  - Chat UI       │                    │  - REST API      │          │
+│   │  - User list     │                    │  - Bridge to TCP │          │
+│   └──────────────────┘                    └────────┬─────────┘          │
+│                                                    │                     │
+│                                           TCP Socket                     │
+│                                                    │                     │
+├────────────────────────────────────────────────────┼─────────────────────┤
+│                              CORE LAYER            │                     │
+├────────────────────────────────────────────────────┼─────────────────────┤
+│                                                    ▼                     │
+│   ┌──────────────┐        TCP Socket        ┌──────────────────┐        │
+│   │ Chat Client  │◄────────────────────────►│   Chat Server    │        │
+│   │  (Terminal)  │                          │  (chat_server)   │        │
+│   └──────────────┘                          └────────┬─────────┘        │
+│                                                      │                   │
+│                                             ioctl/read/write             │
+│                                                      ▼                   │
+├──────────────────────────────────────────────────────────────────────────┤
+│                            KERNEL SPACE                                  │
+├──────────────────────────────────────────────────────────────────────────┤
+│   ┌──────────────────────────────────────────────────────────────┐      │
+│   │                  Crypto Character Device Driver               │      │
+│   │                       /dev/crypto_dev                         │      │
+│   └──────────────────────────────────────────────────────────────┘      │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Yêu cầu hệ thống / Requirements
@@ -131,6 +180,7 @@ linux-driver-develop/
 - GCC compiler
 - Linux kernel headers (để build driver)
 - Make
+- Python 3.8+ và pip (cho web backend)
 
 ## Hướng dẫn build / Build Instructions
 
@@ -154,21 +204,29 @@ sudo make install
 sudo make uninstall
 ```
 
+### Setup Web Backend:
+```bash
+make backend
+# Hoặc: pip3 install -r backend/requirements.txt
+```
+
 ## Hướng dẫn sử dụng / Usage Instructions
 
-### 1. Khởi động server:
+### Cách 1: Terminal Client (CLI)
+
+#### 1. Khởi động server:
 ```bash
 ./server/chat_server [port]
 # Default port: 8888
 ```
 
-### 2. Khởi động client (terminal khác):
+#### 2. Khởi động client (terminal khác):
 ```bash
 ./client/chat_client [server_ip] [port]
 # Default: 127.0.0.1:8888
 ```
 
-### 3. Các lệnh client:
+#### 3. Các lệnh client:
 ```
 login [username]     - Đăng nhập (password sẽ được hỏi)
 logout               - Đăng xuất
@@ -178,7 +236,32 @@ list                 - Xem danh sách user online
 exit                 - Thoát
 ```
 
-### 4. Test users mặc định:
+### Cách 2: Web UI (Browser)
+
+#### 1. Khởi động TCP server:
+```bash
+./server/chat_server
+```
+
+#### 2. Khởi động web backend (terminal khác):
+```bash
+cd backend
+python3 chat_backend.py
+# Server chạy tại http://localhost:5000
+```
+
+#### 3. Mở browser:
+```
+http://localhost:5000
+```
+
+#### 4. Sử dụng giao diện web:
+- Đăng nhập với username/password
+- Xem danh sách người dùng online bên trái
+- Nhấp vào tên người dùng để gửi tin nhắn riêng
+- Gửi tin nhắn broadcast đến tất cả
+
+### Test users mặc định:
 | Username | Password    |
 |----------|-------------|
 | alice    | password123 |

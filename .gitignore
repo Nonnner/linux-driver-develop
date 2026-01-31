@@ -25,3 +25,20 @@ chat_client
 # OS files
 .DS_Store
 Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.env
+*.egg-info/
+dist/
+build/
+
+# Node.js (if added later)
+node_modules/
+npm-debug.log

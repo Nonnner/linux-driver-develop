@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat System - Hệ thống Chat đa người dùng</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Login Screen -->
+        <div id="login-screen" class="login-container">
+            <div class="login-box">
+                <div class="login-header">
+                    <h1>🔐 Chat System</h1>
+                    <p>Hệ thống chat nhiều người dùng với mã hóa kernel</p>
+                </div>
+                <form id="login-form" onsubmit="return handleLogin(event)">
+                    <div class="form-group">
+                        <label for="username">Tên đăng nhập</label>
+                        <input type="text" id="username" name="username" placeholder="Nhập username" required autofocus>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Mật khẩu</label>
+                        <input type="password" id="password" name="password" placeholder="Nhập password" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="login-btn">
+                        <span>Đăng nhập</span>
+                    </button>
+                    <div id="login-error" class="error-message" style="display: none;"></div>
+                </form>
+                <div class="login-footer">
+                    <p>Test users: <strong>alice</strong> / password123, <strong>bob</strong> / secret456</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Screen -->
+        <div id="chat-screen" class="chat-container" style="display: none;">
+            <!-- Header -->
+            <header class="chat-header">
+                <div class="header-left">
+                    <h1>💬 Chat Room</h1>
+                </div>
+                <div class="header-right">
+                    <span id="current-user" class="user-badge"></span>
+                    <button onclick="handleLogout()" class="btn btn-logout">Đăng xuất</button>
+                </div>
+            </header>
+
+            <div class="chat-main">
+                <!-- Sidebar - User List -->
+                <aside class="sidebar">
+                    <div class="sidebar-header">
+                        <h3>👥 Người dùng online</h3>
+                        <button onclick="refreshUsers()" class="btn btn-refresh" title="Làm mới">🔄</button>
+                    </div>
+                    <ul id="user-list" class="user-list">
+                        <!-- Users will be populated here -->
+                    </ul>
+                </aside>
+
+                <!-- Main Chat Area -->
+                <main class="chat-area">
+                    <div class="chat-target">
+                        <span id="chat-target-label">Gửi đến: </span>
+                        <span id="chat-target-user" class="target-user">Tất cả (Broadcast)</span>
+                        <button id="clear-target-btn" onclick="clearTarget()" class="btn btn-small" style="display: none;">✕</button>
+                    </div>
+
+                    <div id="messages" class="messages-container">
+                        <!-- Messages will be populated here -->
+                        <div class="welcome-message">
+                            <p>👋 Chào mừng đến với Chat Room!</p>
+                            <p>Nhấp vào tên người dùng để gửi tin nhắn riêng.</p>
+                            <p>Hoặc gửi tin nhắn broadcast đến tất cả người dùng.</p>
+                        </div>
+                    </div>
+
+                    <form id="message-form" class="message-form" onsubmit="return handleSendMessage(event)">
+                        <input type="text" id="message-input" placeholder="Nhập tin nhắn..." autocomplete="off" required>
+                        <button type="submit" class="btn btn-send">Gửi 📤</button>
+                    </form>
+                </main>
+            </div>
+
+            <!-- Status Bar -->
+            <footer class="status-bar">
+                <span id="connection-status" class="status connected">🟢 Đã kết nối</span>
+                <span id="encryption-status" class="status">🔒 Mã hóa AES-128</span>
+            </footer>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+</body>
+</html>
