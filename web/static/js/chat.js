@@ -15,8 +15,12 @@ let isConnected = false;
 const loginScreen = document.getElementById('login-screen');
 const chatScreen = document.getElementById('chat-screen');
 const loginForm = document.getElementById('login-form');
+const registerForm = document.getElementById('register-form');
 const loginBtn = document.getElementById('login-btn');
+const registerBtn = document.getElementById('register-btn');
 const loginError = document.getElementById('login-error');
+const registerError = document.getElementById('register-error');
+const registerSuccess = document.getElementById('register-success');
 const currentUserDisplay = document.getElementById('current-user');
 const userList = document.getElementById('user-list');
 const messagesContainer = document.getElementById('messages');
@@ -80,9 +84,37 @@ function setupSocketEvents() {
         handleUserList(data);
     });
     
+    socket.on('register_response', (data) => {
+        handleRegisterResponse(data);
+    });
+    
     socket.on('error', (data) => {
         showNotification(data.message || 'Có lỗi xảy ra', 'error');
     });
+}
+
+/**
+ * Show login form, hide register form
+ */
+function showLoginForm() {
+    document.getElementById('login-form').style.display = 'block';
+    document.getElementById('register-form').style.display = 'none';
+    document.getElementById('login-tab').classList.add('active');
+    document.getElementById('register-tab').classList.remove('active');
+    hideLoginError();
+    hideRegisterMessages();
+}
+
+/**
+ * Show register form, hide login form
+ */
+function showRegisterForm() {
+    document.getElementById('login-form').style.display = 'none';
+    document.getElementById('register-form').style.display = 'block';
+    document.getElementById('login-tab').classList.remove('active');
+    document.getElementById('register-tab').classList.add('active');
+    hideLoginError();
+    hideRegisterMessages();
 }
 
 /**
@@ -107,6 +139,75 @@ function handleLogin(event) {
     socket.emit('login', { username, password });
     
     return false;
+}
+
+/**
+ * Handle registration form submission
+ */
+function handleRegister(event) {
+    event.preventDefault();
+    
+    const username = document.getElementById('reg-username').value.trim();
+    const password = document.getElementById('reg-password').value;
+    const confirmPassword = document.getElementById('reg-confirm-password').value;
+    
+    hideRegisterMessages();
+    
+    if (!username || !password || !confirmPassword) {
+        showRegisterError('Vui lòng nhập đầy đủ thông tin');
+        return false;
+    }
+    
+    if (password !== confirmPassword) {
+        showRegisterError('Mật khẩu xác nhận không khớp');
+        return false;
+    }
+    
+    if (username.length < 3 || username.length > 20) {
+        showRegisterError('Tên đăng nhập phải từ 3-20 ký tự');
+        return false;
+    }
+    
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+        showRegisterError('Tên đăng nhập chỉ được chứa chữ cái, số và dấu gạch dưới');
+        return false;
+    }
+    
+    if (password.length < 6) {
+        showRegisterError('Mật khẩu phải có ít nhất 6 ký tự');
+        return false;
+    }
+    
+    // Disable register button
+    registerBtn.disabled = true;
+    registerBtn.innerHTML = '<span>Đang đăng ký...</span>';
+    
+    // Send register request
+    socket.emit('register', { username, password });
+    
+    return false;
+}
+
+/**
+ * Handle registration response from server
+ */
+function handleRegisterResponse(data) {
+    registerBtn.disabled = false;
+    registerBtn.innerHTML = '<span>Đăng ký</span>';
+    
+    if (data.success) {
+        showRegisterSuccess(data.message || 'Đăng ký thành công! Bạn có thể đăng nhập ngay.');
+        // Clear form
+        document.getElementById('reg-username').value = '';
+        document.getElementById('reg-password').value = '';
+        document.getElementById('reg-confirm-password').value = '';
+        // Switch to login tab after 2 seconds
+        setTimeout(() => {
+            showLoginForm();
+        }, 2000);
+    } else {
+        showRegisterError(data.message || 'Đăng ký thất bại');
+    }
 }
 
 /**
@@ -352,6 +453,32 @@ function showLoginError(message) {
  */
 function hideLoginError() {
     loginError.style.display = 'none';
+}
+
+/**
+ * Show register error
+ */
+function showRegisterError(message) {
+    registerError.textContent = message;
+    registerError.style.display = 'block';
+    registerSuccess.style.display = 'none';
+}
+
+/**
+ * Show register success
+ */
+function showRegisterSuccess(message) {
+    registerSuccess.textContent = message;
+    registerSuccess.style.display = 'block';
+    registerError.style.display = 'none';
+}
+
+/**
+ * Hide register messages
+ */
+function hideRegisterMessages() {
+    registerError.style.display = 'none';
+    registerSuccess.style.display = 'none';
 }
 
 /**

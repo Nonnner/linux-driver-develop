@@ -57,12 +57,20 @@ MSG_TYPE_PRIVATE_MSG = 10
 MSG_TYPE_ERROR = 11
 MSG_TYPE_PING = 12
 MSG_TYPE_PONG = 13
+MSG_TYPE_REGISTER_REQ = 14
+MSG_TYPE_REGISTER_RESP = 15
 
 # Response codes
 RESP_SUCCESS = 0
 RESP_ERR_INVALID_CREDENTIALS = 1
 RESP_ERR_USER_ALREADY_LOGGED = 2
 RESP_ERR_USER_NOT_FOUND = 3
+RESP_ERR_SERVER_FULL = 4
+RESP_ERR_ENCRYPTION_FAILED = 5
+RESP_ERR_INTERNAL_ERROR = 6
+RESP_ERR_USER_ALREADY_EXISTS = 7
+RESP_ERR_INVALID_USERNAME = 8
+RESP_ERR_INVALID_PASSWORD = 9
 
 # Flask app setup
 app = Flask(__name__, 
@@ -166,6 +174,56 @@ class ChatConnection:
                 
         except Exception as e:
             return False, f"Login error: {e}"
+    
+    def register(self, username, password):
+        """Send registration request to the C chat server"""
+        if not self.socket:
+            return False, "Not connected to server"
+        
+        # Hash password using MD5
+        password_hash = hashlib.md5(password.encode()).digest()
+        
+        # Build registration request message
+        # Header: type(1) + flags(1) + payload_len(2) + sequence(4)
+        # Payload: username(32) + password_hash(16)
+        
+        payload = username.encode().ljust(MAX_USERNAME_LEN, b'\x00') + password_hash
+        header = struct.pack('<BBHI', MSG_TYPE_REGISTER_REQ, 0, len(payload), 0)
+        
+        try:
+            self.socket.sendall(header + payload)
+            
+            # Receive response
+            resp_header = self.socket.recv(8)
+            if len(resp_header) < 8:
+                return False, "Invalid response from server"
+            
+            msg_type, flags, payload_len, seq = struct.unpack('<BBHI', resp_header)
+            
+            if msg_type != MSG_TYPE_REGISTER_RESP:
+                return False, "Unexpected response type"
+            
+            resp_payload = self.socket.recv(payload_len)
+            if len(resp_payload) < 1:
+                return False, "Invalid response payload"
+            
+            code = resp_payload[0]
+            # Get message (next 64 bytes after code)
+            message = resp_payload[1:65].rstrip(b'\x00').decode('utf-8', errors='ignore') if len(resp_payload) > 1 else ''
+            
+            if code == RESP_SUCCESS:
+                return True, message or "Registration successful"
+            elif code == RESP_ERR_USER_ALREADY_EXISTS:
+                return False, message or "Username already exists"
+            elif code == RESP_ERR_INVALID_USERNAME:
+                return False, message or "Invalid username format"
+            elif code == RESP_ERR_SERVER_FULL:
+                return False, message or "Server is full"
+            else:
+                return False, message or f"Registration failed with code {code}"
+                
+        except Exception as e:
+            return False, f"Registration error: {e}"
     
     def logout(self):
         """Send logout request to the C chat server"""
@@ -350,6 +408,41 @@ def handle_login(data):
     # Request user list after successful login
     if success:
         conn.request_user_list()
+
+
+@socketio.on('register')
+def handle_register(data):
+    """Handle registration request from web client"""
+    username = data.get('username', '').strip()
+    password = data.get('password', '')
+    
+    if not username or not password:
+        emit('register_response', {'success': False, 'message': 'Username and password required'})
+        return
+    
+    # Validate username format (alphanumeric and underscore only)
+    import re
+    if not re.match(r'^[a-zA-Z0-9_]+$', username):
+        emit('register_response', {'success': False, 'message': 'Username can only contain letters, numbers, and underscores'})
+        return
+    
+    if len(username) < 3 or len(username) > 20:
+        emit('register_response', {'success': False, 'message': 'Username must be 3-20 characters'})
+        return
+    
+    if len(password) < 6:
+        emit('register_response', {'success': False, 'message': 'Password must be at least 6 characters'})
+        return
+    
+    with connections_lock:
+        conn = connections.get(request.sid)
+    
+    if not conn:
+        emit('register_response', {'success': False, 'message': 'Not connected to server'})
+        return
+    
+    success, message = conn.register(username, password)
+    emit('register_response', {'success': success, 'message': message})
 
 
 @socketio.on('logout')

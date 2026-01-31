@@ -16,6 +16,14 @@
                     <h1>🔐 Chat System</h1>
                     <p>Hệ thống chat nhiều người dùng với mã hóa kernel</p>
                 </div>
+                
+                <!-- Tab buttons -->
+                <div class="auth-tabs">
+                    <button type="button" class="tab-btn active" id="login-tab" onclick="showLoginForm()">Đăng nhập</button>
+                    <button type="button" class="tab-btn" id="register-tab" onclick="showRegisterForm()">Đăng ký</button>
+                </div>
+                
+                <!-- Login Form -->
                 <form id="login-form" onsubmit="return handleLogin(event)">
                     <div class="form-group">
                         <label for="username">Tên đăng nhập</label>
@@ -30,6 +38,29 @@
                     </button>
                     <div id="login-error" class="error-message" style="display: none;"></div>
                 </form>
+                
+                <!-- Register Form -->
+                <form id="register-form" onsubmit="return handleRegister(event)" style="display: none;">
+                    <div class="form-group">
+                        <label for="reg-username">Tên đăng nhập</label>
+                        <input type="text" id="reg-username" name="reg-username" placeholder="Nhập username (3-20 ký tự)" required>
+                        <small class="form-hint">Chỉ chứa chữ cái, số và dấu gạch dưới</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-password">Mật khẩu</label>
+                        <input type="password" id="reg-password" name="reg-password" placeholder="Nhập password (tối thiểu 6 ký tự)" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-confirm-password">Xác nhận mật khẩu</label>
+                        <input type="password" id="reg-confirm-password" name="reg-confirm-password" placeholder="Nhập lại password" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="register-btn">
+                        <span>Đăng ký</span>
+                    </button>
+                    <div id="register-error" class="error-message" style="display: none;"></div>
+                    <div id="register-success" class="success-message" style="display: none;"></div>
+                </form>
+                
                 <div class="login-footer">
                     <p>Test users: <strong>alice</strong> / password123, <strong>bob</strong> / secret456</p>
                 </div>

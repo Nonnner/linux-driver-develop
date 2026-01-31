@@ -34,7 +34,9 @@ typedef enum {
     MSG_TYPE_PRIVATE_MSG,       /* Private message to specific user */
     MSG_TYPE_ERROR,             /* Error message */
     MSG_TYPE_PING,              /* Keep-alive ping */
-    MSG_TYPE_PONG               /* Keep-alive pong */
+    MSG_TYPE_PONG,              /* Keep-alive pong */
+    MSG_TYPE_REGISTER_REQ,      /* Client registration request */
+    MSG_TYPE_REGISTER_RESP      /* Server registration response */
 } message_type_t;
 
 /* Response codes */
@@ -45,7 +47,10 @@ typedef enum {
     RESP_ERR_USER_NOT_FOUND,
     RESP_ERR_SERVER_FULL,
     RESP_ERR_ENCRYPTION_FAILED,
-    RESP_ERR_INTERNAL_ERROR
+    RESP_ERR_INTERNAL_ERROR,
+    RESP_ERR_USER_ALREADY_EXISTS,    /* Username already registered */
+    RESP_ERR_INVALID_USERNAME,       /* Invalid username format */
+    RESP_ERR_INVALID_PASSWORD        /* Invalid password format */
 } response_code_t;
 
 /* 
@@ -75,6 +80,22 @@ typedef struct {
     unsigned char session_key[16];     /* AES session key (encrypted) */
     unsigned char iv[16];              /* Initial IV for encryption */
 } __attribute__((packed)) login_resp_t;
+
+/*
+ * Registration request payload (same as login)
+ */
+typedef struct {
+    char username[MAX_USERNAME_LEN];
+    unsigned char password_hash[16];  /* MD5 hash of password */
+} __attribute__((packed)) register_req_t;
+
+/*
+ * Registration response payload
+ */
+typedef struct {
+    uint8_t code;               /* Response code */
+    char message[64];           /* Status message */
+} __attribute__((packed)) register_resp_t;
 
 /*
  * Chat message payload
@@ -118,12 +139,14 @@ typedef struct {
 typedef struct {
     msg_header_t header;
     union {
-        login_req_t  login_req;
-        login_resp_t login_resp;
-        chat_msg_t   chat_msg;
-        user_list_t  user_list;
-        error_msg_t  error_msg;
-        unsigned char raw[4096];
+        login_req_t     login_req;
+        login_resp_t    login_resp;
+        register_req_t  register_req;
+        register_resp_t register_resp;
+        chat_msg_t      chat_msg;
+        user_list_t     user_list;
+        error_msg_t     error_msg;
+        unsigned char   raw[4096];
     } payload;
 } chat_message_t;
 

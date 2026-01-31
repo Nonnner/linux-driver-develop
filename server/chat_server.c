@@ -62,6 +62,7 @@ static int server_socket = -1;
 static void *client_handler(void *arg);
 static int authenticate_user(client_info_t *client, const char *username,
                              const unsigned char *password_hash);
+static int register_user(const char *username, const unsigned char *password_hash);
 static int send_message(int socket_fd, chat_message_t *msg);
 static int receive_message(int socket_fd, chat_message_t *msg);
 static void broadcast_message(client_info_t *sender, const char *message, size_t len);
@@ -464,6 +465,40 @@ static void *client_handler(void *arg)
             send_message(client->socket_fd, &pong);
             break;
 
+        case MSG_TYPE_REGISTER_REQ:
+            printf("Registration request for: %s\n", msg.payload.register_req.username);
+            
+            /* Process registration */
+            chat_message_t reg_resp;
+            memset(&reg_resp, 0, sizeof(reg_resp));
+            reg_resp.header.type = MSG_TYPE_REGISTER_RESP;
+            reg_resp.header.payload_len = sizeof(register_resp_t);
+            
+            /* Register the new user */
+            int reg_result = register_user(msg.payload.register_req.username,
+                                           msg.payload.register_req.password_hash);
+            
+            if (reg_result == 0) {
+                reg_resp.payload.register_resp.code = RESP_SUCCESS;
+                strcpy(reg_resp.payload.register_resp.message, "Registration successful");
+                printf("User %s registered successfully\n", msg.payload.register_req.username);
+            } else if (reg_result == -2) {
+                reg_resp.payload.register_resp.code = RESP_ERR_USER_ALREADY_EXISTS;
+                strcpy(reg_resp.payload.register_resp.message, "Username already exists");
+                printf("Registration failed: username %s already exists\n", msg.payload.register_req.username);
+            } else if (reg_result == -3) {
+                reg_resp.payload.register_resp.code = RESP_ERR_SERVER_FULL;
+                strcpy(reg_resp.payload.register_resp.message, "Server user database full");
+                printf("Registration failed: user database full\n");
+            } else {
+                reg_resp.payload.register_resp.code = RESP_ERR_INVALID_USERNAME;
+                strcpy(reg_resp.payload.register_resp.message, "Invalid username");
+                printf("Registration failed: invalid username\n");
+            }
+            
+            send_message(client->socket_fd, &reg_resp);
+            break;
+
         default:
             printf("Unknown message type: %d\n", msg.header.type);
             break;
@@ -558,6 +593,56 @@ static int authenticate_user(client_info_t *client, const char *username,
         }
     }
     
+    return 0;
+}
+
+/*
+ * Register a new user
+ * Returns: 0 on success, -1 on invalid username, -2 if user exists, -3 if database full
+ */
+static int register_user(const char *username, const unsigned char *password_hash)
+{
+    /* Validate username */
+    size_t username_len = strlen(username);
+    if (username_len == 0 || username_len >= MAX_USERNAME_LEN) {
+        return -1;
+    }
+    
+    /* Check for invalid characters in username */
+    for (size_t i = 0; i < username_len; i++) {
+        char c = username[i];
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+              (c >= '0' && c <= '9') || c == '_')) {
+            return -1;
+        }
+    }
+    
+    pthread_mutex_lock(&user_db_mutex);
+    
+    /* Check if username already exists */
+    for (int i = 0; i < user_count; i++) {
+        if (strcmp(user_db[i].username, username) == 0) {
+            pthread_mutex_unlock(&user_db_mutex);
+            return -2;  /* User already exists */
+        }
+    }
+    
+    /* Check if database is full */
+    if (user_count >= MAX_CLIENTS) {
+        pthread_mutex_unlock(&user_db_mutex);
+        return -3;  /* Database full */
+    }
+    
+    /* Add new user */
+    strncpy(user_db[user_count].username, username, MAX_USERNAME_LEN - 1);
+    user_db[user_count].username[MAX_USERNAME_LEN - 1] = '\0';
+    memcpy(user_db[user_count].password_hash, password_hash, MD5_HASH_SIZE);
+    user_db[user_count].is_registered = 1;
+    user_count++;
+    
+    pthread_mutex_unlock(&user_db_mutex);
+    
+    printf("New user registered: %s (total users: %d)\n", username, user_count);
     return 0;
 }
 
