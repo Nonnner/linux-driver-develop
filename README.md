@@ -1,48 +1,185 @@
-# linux-driver-develop
-Tôi muốn xây dựng một hệ thống chat nhiều người dùng (User A, User B, User C, …) trên Linux, sử dụng lập trình socket TCP theo mô hình client–server.
+# 💬 Hệ Thống Chat Nhiều Người Dùng với Linux Kernel Crypto Driver
 
-Yêu cầu hệ thống như sau:
+Hệ thống chat nhiều người dùng trên Linux, sử dụng TCP socket với mã hóa AES và băm MD5 được thực hiện trong kernel space thông qua character device driver.
 
-Mỗi người dùng phải đăng nhập bằng username và password trước khi tham gia chat.
+## 📋 Mục Lục
+- [Yêu Cầu Hệ Thống](#-yêu-cầu-hệ-thống)
+- [Cài Đặt](#-cài-đặt)
+- [Cách Chạy Project](#-cách-chạy-project)
+- [Tài Khoản Test](#-tài-khoản-test)
+- [Kiến Trúc Hệ Thống](#-kiến-trúc-hệ-thống)
 
-Chat server chạy ở user space, chịu trách nhiệm:
+## 🔧 Yêu Cầu Hệ Thống
 
-Quản lý nhiều kết nối client đồng thời.
+- Linux (Ubuntu 20.04+ hoặc tương đương)
+- GCC compiler
+- Make
+- Python 3.8+ và pip (cho Web UI)
 
-Xác thực người dùng.
+## 📦 Cài Đặt
 
-Gửi và nhận tin nhắn giữa các người dùng.
+### Bước 1: Clone repository
+```bash
+git clone https://github.com/Nonnner/linux-driver-develop.git
+cd linux-driver-develop
+```
 
-Việc băm mật khẩu (MD5) và mã hóa/giải mã tin nhắn (AES) không được thực hiện ở user space, mà phải được triển khai trong kernel space thông qua một Linux character device driver.
+### Bước 2: Build project
+```bash
+# Build server và client
+make
 
-Chat server giao tiếp với driver bằng các cơ chế ioctl/read/write.
+# (Tùy chọn) Cài đặt dependencies cho Web UI
+make backend
+```
 
-Driver sử dụng Linux Kernel Crypto API để thực hiện thuật toán AES và MD5.
+## 🚀 Cách Chạy Project
 
-Driver chỉ cung cấp cơ chế mã hóa/băm (mechanism), không xử lý logic ứng dụng (policy).
+### Cách 1: Sử dụng Terminal Client (CLI)
 
-Client không trực tiếp gọi driver, chỉ giao tiếp với server qua socket.
+**Terminal 1 - Khởi động Server:**
+```bash
+./server/chat_server
+```
+Server sẽ chạy trên port 8888 (mặc định).
 
-Hãy:
+**Terminal 2 - Khởi động Client:**
+```bash
+./client/chat_client
+```
 
-Đề xuất kiến trúc hệ thống.
+**Các lệnh trong client:**
+| Lệnh | Mô tả |
+|------|-------|
+| `login <username>` | Đăng nhập (sẽ hỏi password) |
+| `logout` | Đăng xuất |
+| `send <user> <message>` | Gửi tin nhắn riêng |
+| `broadcast <message>` | Gửi tin nhắn cho tất cả |
+| `list` | Xem danh sách user online |
+| `help` | Xem hướng dẫn |
+| `exit` | Thoát |
 
-Mô tả luồng xác thực và luồng gửi tin nhắn giữa các người dùng.
+**Ví dụ sử dụng:**
+```
+> login alice
+Password: password123
+Login successful! Welcome, alice
 
-Cung cấp skeleton code cho:
+> list
+=== Online Users ===
+  [online] alice
 
-Chat client
+> broadcast Xin chào mọi người!
+Message broadcast to all users
 
-Chat server
+> send bob Hello Bob!
+Message sent to bob
 
-Crypto character device driver
+> exit
+Goodbye!
+```
 
-Giải thích ngắn gọn lý do thiết kế và lợi ích của việc mã hóa trong kernel.
+### Cách 2: Sử dụng Web UI (Giao diện web)
 
-🔹 PROMPT DÙNG CHO BÁO CÁO / ĐỒ ÁN
+**Terminal 1 - Khởi động TCP Server:**
+```bash
+./server/chat_server
+```
 
-Viết phần mô tả hệ thống cho một đồ án xây dựng ứng dụng chat nhiều người dùng dựa trên socket TCP, trong đó xác thực người dùng và bảo mật tin nhắn được thực hiện thông qua Linux device driver. Driver triển khai thuật toán mã hóa AES và thuật toán băm MD5 trong kernel space bằng Linux Kernel Crypto API. Trình bày kiến trúc, chức năng từng thành phần, luồng hoạt động và ưu điểm của giải pháp.
+**Terminal 2 - Khởi động Web Backend:**
+```bash
+cd backend
+python3 chat_backend.py
+```
 
-🔹 PROMPT “ĂN ĐIỂM” (NẾU DÙNG AI GEN CODE)
+**Terminal 3 - Mở trình duyệt:**
+```
+http://localhost:5000
+```
 
-Generate clean, well-commented C code compatible with Linux for a multi-user TCP chat system. Implement a user-space chat server and client, and a kernel-space character device driver providing AES encryption/decryption and MD5 hashing using the Linux Kernel Crypto API. The server must authenticate users and encrypt messages via the driver using ioctl. Follow proper kernel programming practices and separate mechanism (kernel) from policy (user space).
+**Hoặc chạy nhanh cả 2:**
+```bash
+make run-web
+```
+Sau đó mở browser: http://localhost:5000
+
+## 👤 Tài Khoản Test
+
+| Username | Password |
+|----------|----------|
+| alice | password123 |
+| bob | secret456 |
+| charlie | test789 |
+
+## 🏗️ Kiến Trúc Hệ Thống
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        USER SPACE                            │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│   ┌────────────┐     TCP Socket     ┌────────────────┐      │
+│   │ Web Browser│◄──────────────────►│  Flask Backend │      │
+│   │  (Web UI)  │    WebSocket       │  (Python)      │      │
+│   └────────────┘                    └───────┬────────┘      │
+│                                             │               │
+│   ┌────────────┐     TCP Socket     ┌───────▼────────┐      │
+│   │ Chat Client│◄──────────────────►│  Chat Server   │      │
+│   │ (Terminal) │                    │  (C program)   │      │
+│   └────────────┘                    └───────┬────────┘      │
+│                                             │               │
+│                                    ioctl/read/write         │
+│                                             │               │
+├─────────────────────────────────────────────┼───────────────┤
+│                        KERNEL SPACE         │               │
+├─────────────────────────────────────────────┼───────────────┤
+│                                             ▼               │
+│   ┌─────────────────────────────────────────────────┐      │
+│   │          Crypto Character Device Driver          │      │
+│   │               /dev/crypto_dev                    │      │
+│   │  ┌──────────────┐    ┌──────────────┐           │      │
+│   │  │  AES-128-CBC │    │     MD5      │           │      │
+│   │  │  Encrypt/Dec │    │   Hash Func  │           │      │
+│   │  └──────────────┘    └──────────────┘           │      │
+│   │           Linux Kernel Crypto API               │      │
+│   └─────────────────────────────────────────────────┘      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## 📁 Cấu Trúc Thư Mục
+
+```
+linux-driver-develop/
+├── Makefile              # Build file chính
+├── README.md             # File này
+├── ARCHITECTURE.md       # Tài liệu chi tiết kiến trúc
+├── common/               # Headers dùng chung
+│   ├── crypto_user.h     # Interface driver
+│   └── protocol.h        # Protocol definitions
+├── driver/               # Kernel module (crypto)
+│   ├── crypto_driver.c
+│   └── Makefile
+├── server/               # TCP Chat server
+│   ├── chat_server.c
+│   └── Makefile
+├── client/               # Terminal client
+│   ├── chat_client.c
+│   └── Makefile
+├── backend/              # Web backend (Flask)
+│   ├── chat_backend.py
+│   └── requirements.txt
+└── web/                  # Web UI
+    ├── templates/
+    └── static/
+```
+
+## 🆘 Trợ Giúp
+
+Xem các targets có sẵn:
+```bash
+make help
+```
+
+## 📖 Tài Liệu Chi Tiết
+
+Xem file [ARCHITECTURE.md](ARCHITECTURE.md) để biết thêm chi tiết về kiến trúc hệ thống, luồng hoạt động và thiết kế.

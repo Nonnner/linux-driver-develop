@@ -1,0 +1,44 @@
+# Build artifacts
+*.o
+*.ko
+*.mod
+*.mod.c
+*.mod.o
+*.cmd
+*.order
+*.symvers
+.tmp_versions/
+modules.order
+Module.symvers
+
+# Compiled binaries
+chat_server
+chat_client
+
+# IDE/Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.env
+*.egg-info/
+dist/
+build/
+
+# Node.js (if added later)
+node_modules/
+npm-debug.log
