@@ -5,6 +5,9 @@
  * and manages the chat UI.
  */
 
+// Configuration constants
+const REGISTRATION_SUCCESS_DELAY_MS = 2000;  // Delay before switching to login after successful registration
+
 // Global state
 let socket = null;
 let currentUser = null;
@@ -201,10 +204,10 @@ function handleRegisterResponse(data) {
         document.getElementById('reg-username').value = '';
         document.getElementById('reg-password').value = '';
         document.getElementById('reg-confirm-password').value = '';
-        // Switch to login tab after 2 seconds
+        // Switch to login tab after delay
         setTimeout(() => {
             showLoginForm();
-        }, 2000);
+        }, REGISTRATION_SUCCESS_DELAY_MS);
     } else {
         showRegisterError(data.message || 'Đăng ký thất bại');
     }

@@ -18,6 +18,7 @@ import socket
 import struct
 import threading
 import hashlib
+import re
 from flask import Flask, render_template, request, jsonify, session
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from flask_cors import CORS
@@ -421,7 +422,6 @@ def handle_register(data):
         return
     
     # Validate username format (alphanumeric and underscore only)
-    import re
     if not re.match(r'^[a-zA-Z0-9_]+$', username):
         emit('register_response', {'success': False, 'message': 'Username can only contain letters, numbers, and underscores'})
         return
