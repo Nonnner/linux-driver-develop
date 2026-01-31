@@ -1,0 +1,30 @@
+# Build artifacts
+*.o
+*.ko
+*.mod
+*.mod.c
+*.cmd
+.tmp_versions/
+Module.symvers
+modules.order
+*.order
+*.symvers
+
+# Compiled binaries
+chat_server
+chat_client
+
+# Kernel module build files
+.*.cmd
+.cache.mk
+
+# Editor/IDE files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+/tmp/
