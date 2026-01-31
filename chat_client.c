@@ -150,9 +150,12 @@ int main(int argc, char *argv[])
             }
             
             /* Send message to server */
-            if (strlen(buffer) > 0) {
-                strcat(buffer, "\n");
-                if (send(client_socket, buffer, strlen(buffer), 0) < 0) {
+            size_t len = strlen(buffer);
+            if (len > 0 && len < BUFFER_SIZE - 1) {
+                /* Safely append newline */
+                buffer[len] = '\n';
+                buffer[len + 1] = '\0';
+                if (send(client_socket, buffer, len + 1, 0) < 0) {
                     perror("Send failed");
                     break;
                 }

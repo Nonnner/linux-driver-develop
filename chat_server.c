@@ -67,7 +67,14 @@ static struct {
 };
 static int user_db_size = 3;
 
-/* AES key for message encryption (shared secret) */
+/* AES key for message encryption (shared secret)
+ * WARNING: This hardcoded key is for DEMONSTRATION ONLY.
+ * In production systems:
+ * - Generate cryptographically secure random keys
+ * - Use key exchange protocols (e.g., Diffie-Hellman)
+ * - Store keys securely
+ * - Rotate keys regularly
+ */
 static unsigned char aes_key[AES_KEY_SIZE] = "1234567890123456";
 
 /* Function prototypes */
@@ -271,6 +278,10 @@ void *handle_client(void *arg)
     if (received <= 0) {
         goto cleanup;
     }
+    /* Ensure buffer doesn't overflow */
+    if (received >= USERNAME_SIZE) {
+        received = USERNAME_SIZE - 1;
+    }
     username[received] = '\0';
     /* Remove newline */
     username[strcspn(username, "\r\n")] = 0;
@@ -279,6 +290,10 @@ void *handle_client(void *arg)
     received = recv(client->socket, password, PASSWORD_SIZE - 1, 0);
     if (received <= 0) {
         goto cleanup;
+    }
+    /* Ensure buffer doesn't overflow */
+    if (received >= PASSWORD_SIZE) {
+        received = PASSWORD_SIZE - 1;
     }
     password[received] = '\0';
     password[strcspn(password, "\r\n")] = 0;

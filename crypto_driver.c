@@ -101,14 +101,21 @@ out:
     return ret;
 }
 
-/* AES encryption function */
+/* AES encryption function
+ * WARNING: This implementation uses ECB mode for simplicity.
+ * ECB mode is NOT SECURE for production use because:
+ * - Identical plaintext blocks produce identical ciphertext blocks
+ * - Patterns in the plaintext are visible in the ciphertext
+ * - No initialization vector means deterministic encryption
+ * 
+ * For production systems, use CBC, CTR, or GCM mode with proper IV.
+ */
 static int aes_encrypt(const unsigned char *plaintext, unsigned int len,
                       const unsigned char *key, unsigned char *ciphertext)
 {
     struct crypto_skcipher *tfm;
     struct skcipher_request *req;
     struct scatterlist sg_in, sg_out;
-    unsigned char iv[AES_KEY_SIZE];
     int ret;
 
     tfm = crypto_alloc_skcipher("ecb(aes)", 0, 0);
@@ -129,12 +136,11 @@ static int aes_encrypt(const unsigned char *plaintext, unsigned int len,
         goto out;
     }
 
-    memset(iv, 0, AES_KEY_SIZE);
-
     sg_init_one(&sg_in, plaintext, len);
     sg_init_one(&sg_out, ciphertext, len);
 
-    skcipher_request_set_crypt(req, &sg_in, &sg_out, len, iv);
+    /* Note: ECB mode doesn't use IV, NULL is passed */
+    skcipher_request_set_crypt(req, &sg_in, &sg_out, len, NULL);
 
     ret = crypto_skcipher_encrypt(req);
     if (ret) {
@@ -147,14 +153,16 @@ out:
     return ret;
 }
 
-/* AES decryption function */
+/* AES decryption function
+ * WARNING: This implementation uses ECB mode for simplicity.
+ * See aes_encrypt() for security warnings about ECB mode.
+ */
 static int aes_decrypt(const unsigned char *ciphertext, unsigned int len,
                       const unsigned char *key, unsigned char *plaintext)
 {
     struct crypto_skcipher *tfm;
     struct skcipher_request *req;
     struct scatterlist sg_in, sg_out;
-    unsigned char iv[AES_KEY_SIZE];
     int ret;
 
     tfm = crypto_alloc_skcipher("ecb(aes)", 0, 0);
@@ -175,12 +183,11 @@ static int aes_decrypt(const unsigned char *ciphertext, unsigned int len,
         goto out;
     }
 
-    memset(iv, 0, AES_KEY_SIZE);
-
     sg_init_one(&sg_in, ciphertext, len);
     sg_init_one(&sg_out, plaintext, len);
 
-    skcipher_request_set_crypt(req, &sg_in, &sg_out, len, iv);
+    /* Note: ECB mode doesn't use IV, NULL is passed */
+    skcipher_request_set_crypt(req, &sg_in, &sg_out, len, NULL);
 
     ret = crypto_skcipher_decrypt(req);
     if (ret) {
