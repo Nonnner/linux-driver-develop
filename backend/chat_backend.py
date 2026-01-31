@@ -27,8 +27,15 @@ CHAT_SERVER_HOST = os.environ.get('CHAT_SERVER_HOST', '127.0.0.1')
 CHAT_SERVER_PORT = int(os.environ.get('CHAT_SERVER_PORT', 8888))
 WEB_PORT = int(os.environ.get('WEB_PORT', 5000))
 SECRET_KEY = os.environ.get('SECRET_KEY', 'chat-secret-key-change-in-production')
+DEBUG_MODE = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
+
+# Warn about default secret key in production
+if SECRET_KEY == 'chat-secret-key-change-in-production' and not DEBUG_MODE:
+    print("WARNING: Using default SECRET_KEY. Set SECRET_KEY environment variable in production!")
 
 # Protocol constants (must match protocol.h)
+# Note: MD5 is used for password hashing to match the C server protocol.
+# In production, consider migrating to bcrypt or Argon2.
 MAX_USERNAME_LEN = 32
 MAX_PASSWORD_LEN = 32
 MAX_MESSAGE_LEN = 1024
@@ -392,5 +399,6 @@ if __name__ == '__main__':
     print(f"Starting Chat Backend Server...")
     print(f"Chat Server: {CHAT_SERVER_HOST}:{CHAT_SERVER_PORT}")
     print(f"Web Server: http://0.0.0.0:{WEB_PORT}")
+    print(f"Debug Mode: {DEBUG_MODE}")
     
-    socketio.run(app, host='0.0.0.0', port=WEB_PORT, debug=True)
+    socketio.run(app, host='0.0.0.0', port=WEB_PORT, debug=DEBUG_MODE)
