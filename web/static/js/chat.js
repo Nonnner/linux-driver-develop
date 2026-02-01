@@ -31,6 +31,18 @@ function initSocket() {
         updateUserList(data.users);
     });
     
+    socket.on('user_joined', function(data) {
+        addSystemMessage(data.message);
+        // Request updated user list
+        socket.emit('request_user_list');
+    });
+    
+    socket.on('user_left', function(data) {
+        addSystemMessage(data.message);
+        // Request updated user list
+        socket.emit('request_user_list');
+    });
+    
     socket.on('error', function(data) {
         addSystemMessage('Error: ' + data.message);
     });
@@ -101,7 +113,12 @@ function handleLoginResponse(data) {
         addSystemMessage(data.message);
         
         // Request user list
-        socket.emit('get_users');
+        socket.emit('request_user_list');
+        
+        // Request user list periodically
+        setInterval(function() {
+            socket.emit('request_user_list');
+        }, 5000); // Every 5 seconds
         
         // Focus on message input
         document.getElementById('message-input').focus();
@@ -381,21 +398,9 @@ function clearUserSelection() {
     addSystemMessage('Broadcasting to all users now.');
 }
 
-// Make selectUser available globally
+// Make selectUser and clearUserSelection available globally
 window.selectUser = selectUser;
-    `;
-    
-    const otherUsersHtml = users
-        .filter(u => u && u !== currentUsername)
-        .map(user => `
-            <div class="user-item">
-                <span class="user-status online"></span>
-                <span>${user}</span>
-            </div>
-        `).join('');
-    
-    userListDiv.innerHTML = currentUserHtml + otherUsersHtml;
-}
+window.clearUserSelection = clearUserSelection;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
