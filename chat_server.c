@@ -16,29 +16,24 @@
 #include <fcntl.h>
 #include <errno.h>
 
+/* Include common crypto interface definitions */
+#include "common/crypto_user.h"
+
 #define PORT 8888
 #define MAX_CLIENTS 100
 #define BUFFER_SIZE 4096
 #define USERNAME_SIZE 32
 #define PASSWORD_SIZE 32
-#define MAX_DATA_SIZE 4096
-#define AES_KEY_SIZE 16
-#define MD5_DIGEST_SIZE 16
+#define MAX_DATA_SIZE CRYPTO_MAX_DATA_SIZE
+#define AES_KEY_SIZE CRYPTO_AES_KEY_SIZE
+#define MD5_DIGEST_SIZE CRYPTO_MD5_SIZE
 
-/* IOCTL commands matching driver */
-#define CRYPTO_IOC_MAGIC 'c'
-#define CRYPTO_MD5_HASH _IOWR(CRYPTO_IOC_MAGIC, 1, struct crypto_data)
-#define CRYPTO_AES_ENCRYPT _IOWR(CRYPTO_IOC_MAGIC, 2, struct crypto_data)
-#define CRYPTO_AES_DECRYPT _IOWR(CRYPTO_IOC_MAGIC, 3, struct crypto_data)
-
-/* Data structure for IOCTL */
-struct crypto_data {
-    unsigned char input[MAX_DATA_SIZE];
-    unsigned char output[MAX_DATA_SIZE];
-    unsigned char key[AES_KEY_SIZE];
-    unsigned int input_len;
-    unsigned int output_len;
-};
+/* Use IOCTL commands from common header */
+/* These are defined in crypto_user.h:
+ * - IOCTL_MD5_HASH  (command 6)
+ * - IOCTL_ENCRYPT   (command 4)
+ * - IOCTL_DECRYPT   (command 5)
+ */
 
 /* Client structure */
 typedef struct {
@@ -147,7 +142,8 @@ int md5_hash(const unsigned char *input, unsigned int len, unsigned char *output
     memcpy(data.input, input, len);
     data.input_len = len;
     
-    if (ioctl(crypto_fd, CRYPTO_MD5_HASH, &data) < 0) {
+    /* Use correct IOCTL command from crypto_user.h */
+    if (ioctl(crypto_fd, IOCTL_MD5_HASH, &data) < 0) {
         perror("MD5 hash ioctl failed");
         return -1;
     }
@@ -171,7 +167,8 @@ int aes_encrypt_msg(const unsigned char *plaintext, unsigned int len, unsigned c
     data.input_len = len;
     memcpy(data.key, aes_key, AES_KEY_SIZE);
     
-    if (ioctl(crypto_fd, CRYPTO_AES_ENCRYPT, &data) < 0) {
+    /* Use correct IOCTL command from crypto_user.h */
+    if (ioctl(crypto_fd, IOCTL_ENCRYPT, &data) < 0) {
         perror("AES encrypt ioctl failed");
         return -1;
     }
@@ -196,7 +193,8 @@ int aes_decrypt_msg(const unsigned char *ciphertext, unsigned int len, unsigned 
     data.input_len = len;
     memcpy(data.key, aes_key, AES_KEY_SIZE);
     
-    if (ioctl(crypto_fd, CRYPTO_AES_DECRYPT, &data) < 0) {
+    /* Use correct IOCTL command from crypto_user.h */
+    if (ioctl(crypto_fd, IOCTL_DECRYPT, &data) < 0) {
         perror("AES decrypt ioctl failed");
         return -1;
     }
