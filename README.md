@@ -246,6 +246,7 @@ Authentication successful!
 |------|-------|
 | **[QUICKSTART.md](QUICKSTART.md)** | Hướng dẫn nhanh, step-by-step |
 | **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** | 🆕 Giải quyết vấn đề thường gặp |
+| **[🇻🇳 VIETNAMESE_TROUBLESHOOTING.md](VIETNAMESE_TROUBLESHOOTING.md)** | **🆕 Hướng dẫn tiếng Việt - Vietnamese Guide** |
 | **[DOCUMENTATION.md](DOCUMENTATION.md)** | Tài liệu chi tiết, troubleshooting |
 | **[ARCHITECTURE.md](ARCHITECTURE.md)** | Kiến trúc kỹ thuật, luồng hoạt động |
 | **[README.original.md](README.original.md)** | Yêu cầu gốc (Vietnamese) |
@@ -280,6 +281,8 @@ ls -l /dev/crypto_dev    # Kiểm tra device file
 ```
 
 Xem [TROUBLESHOOTING.md](TROUBLESHOOTING.md) để biết chi tiết và các vấn đề khác.
+
+**🇻🇳 Hướng dẫn tiếng Việt:** [VIETNAMESE_TROUBLESHOOTING.md](VIETNAMESE_TROUBLESHOOTING.md) - Complete Vietnamese troubleshooting guide!
 
 ## 🔄 Luồng Xác Thực (Authentication Flow)
 
