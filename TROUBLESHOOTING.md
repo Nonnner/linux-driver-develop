@@ -60,7 +60,88 @@ dmesg | tail -20
 
 ---
 
-## 2. Module Compilation Errors
+## 2. "MD5 hash ioctl failed: Invalid argument" - Authentication Fails
+
+### Problem
+Server starts but authentication always fails with:
+```
+MD5 hash ioctl failed: Invalid argument
+Failed to hash password for user alice
+Authentication failed for user alice
+```
+
+### Cause
+**Most Common:** Old kernel module (v1.0) is loaded but you're running v2.0 code.
+
+The IOCTL command numbers changed between versions:
+- v1.0: MD5 is command 1, struct size 8216 bytes
+- v2.0: MD5 is command 6, struct size 8232 bytes
+
+When versions don't match, kernel returns "Invalid argument".
+
+### Quick Fix
+
+**Solution: Rebuild and reload the module**
+
+```bash
+# 1. Clean and rebuild
+make clean
+make
+make driver-build
+
+# 2. Reload the module
+sudo make driver-reload
+
+# 3. Test
+./chat_server
+```
+
+### Diagnostic Tool
+
+Run the diagnostic script for detailed analysis:
+
+```bash
+./check_module_version.sh
+```
+
+This will tell you:
+- Module version loaded
+- If source is newer than module
+- What IOCTL commands are expected
+- Exact fix steps
+
+### Complete Debug Guide
+
+For comprehensive troubleshooting, see:
+- **MD5_IOCTL_DEBUG_GUIDE.md** - Complete debugging guide with:
+  - Root cause explanation
+  - IOCTL encoding details
+  - Version compatibility table
+  - Step-by-step fixes
+  - Prevention strategies
+
+### Verification
+
+After fix, you should see:
+```bash
+$ ./chat_server
+Chat server started on port 8888
+Waiting for clients...
+Available users: alice/password123, bob/password456, charlie/password789
+# No "Failed to hash password" errors!
+```
+
+And authentication should work:
+```bash
+$ ./chat_client
+Enter username: alice
+Enter password: password123
+✓ User alice authenticated successfully
+```
+
+---
+
+## 3. Module Compilation Errors
 
 ### Problem
 When running `make -f Makefile.driver`, you get compilation errors like:
@@ -108,7 +189,7 @@ sudo apt-get install linux-headers-$(uname -r)
 
 ---
 
-## 3. "Operation not permitted" when loading module
+## 14. "Operation not permitted" when loading module
 
 ### Problem
 ```
@@ -156,7 +237,7 @@ insmod crypto_driver.ko
 
 ---
 
-## 4. "Connection refused" when running client
+## 14. "Connection refused" when running client
 
 ### Problem
 ```
@@ -195,7 +276,7 @@ kill -9 <PID>
 
 ---
 
-## 5. "Device or resource busy" when unloading module
+## 14. "Device or resource busy" when unloading module
 
 ### Problem
 ```
@@ -225,7 +306,7 @@ sudo rmmod -f crypto_driver
 
 ---
 
-## 6. Authentication Failures
+## 14. Authentication Failures
 
 ### Problem
 ```
@@ -251,7 +332,7 @@ Use the correct demo credentials:
 
 ---
 
-## 7. Messages not appearing in clients
+## 14. Messages not appearing in clients
 
 ### Problem
 Client is connected and authenticated, but messages from other users don't appear.
@@ -286,7 +367,7 @@ ps aux | grep chat_server
 
 ---
 
-## 8. Permission denied on /dev/crypto_dev
+## 14. Permission denied on /dev/crypto_dev
 
 ### Problem
 ```
@@ -312,7 +393,7 @@ sudo chmod 660 /dev/crypto_dev
 
 ---
 
-## 9. Web UI Issues
+## 14. Web UI Issues
 
 ### Problem: "Failed to connect to chat server" in web UI
 
@@ -354,7 +435,7 @@ kill -9 <PID>
 
 ---
 
-## 10. Kernel Messages and Debugging
+## 14. Kernel Messages and Debugging
 
 ### Viewing kernel messages
 ```bash
@@ -392,7 +473,7 @@ crypto_dev: Driver unloaded
 
 ---
 
-## 11. Clean Start (Reset Everything)
+## 14. Clean Start (Reset Everything)
 
 If nothing else works, try a complete reset:
 
@@ -421,7 +502,7 @@ sudo ./setup.sh load
 
 ---
 
-## 12. Checking System Status
+## 14. Checking System Status
 
 Use the setup script to check overall status:
 
@@ -442,7 +523,7 @@ crw-rw-rw- 1 root root 245, 0 Jan 31 10:00 /dev/crypto_dev
 
 ---
 
-## 13. Getting Help
+## 14. Getting Help
 
 If you're still having issues:
 
