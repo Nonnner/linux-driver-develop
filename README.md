@@ -245,9 +245,41 @@ Authentication successful!
 | File | Mô Tả |
 |------|-------|
 | **[QUICKSTART.md](QUICKSTART.md)** | Hướng dẫn nhanh, step-by-step |
+| **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** | 🆕 Giải quyết vấn đề thường gặp |
 | **[DOCUMENTATION.md](DOCUMENTATION.md)** | Tài liệu chi tiết, troubleshooting |
 | **[ARCHITECTURE.md](ARCHITECTURE.md)** | Kiến trúc kỹ thuật, luồng hoạt động |
 | **[README.original.md](README.original.md)** | Yêu cầu gốc (Vietnamese) |
+| **[WEB_UI_README.md](WEB_UI_README.md)** | Hướng dẫn sử dụng Web UI |
+
+## ❗ Vấn Đề Thường Gặp (Common Issues)
+
+### "Failed to open crypto device: No such file or directory"
+
+**Nguyên nhân:** Kernel module chưa được load.
+
+**Giải pháp nhanh:**
+```bash
+# Cách 1: Sử dụng script helper (Khuyến nghị)
+sudo ./setup.sh load
+
+# Cách 2: Sử dụng Makefile
+make driver-build
+make driver-load
+
+# Cách 3: Thủ công
+make -f Makefile.driver
+sudo insmod crypto_driver.ko
+sudo chmod 666 /dev/crypto_dev
+```
+
+**Kiểm tra:**
+```bash
+./setup.sh status        # Xem trạng thái module
+lsmod | grep crypto_driver  # Kiểm tra module đã load
+ls -l /dev/crypto_dev    # Kiểm tra device file
+```
+
+Xem [TROUBLESHOOTING.md](TROUBLESHOOTING.md) để biết chi tiết và các vấn đề khác.
 
 ## 🔄 Luồng Xác Thực (Authentication Flow)
 
