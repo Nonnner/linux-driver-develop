@@ -47,6 +47,10 @@ def connect_to_tcp_server():
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(10)  # 10 second timeout for operations
         sock.connect((TCP_SERVER_HOST, TCP_SERVER_PORT))
+        
+        # Enable TCP keepalive to keep connection alive
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        
         return sock
     except Exception as e:
         print(f"Failed to connect to TCP server: {e}")
@@ -88,42 +92,78 @@ def recv_until(sock, expected_text, max_bytes=1024, timeout=5):
 def tcp_receiver(session_id, tcp_sock, websocket_sid):
     """Receive messages from TCP server and forward to WebSocket"""
     buffer = b''
+    connection_active = True
+    
     try:
-        while True:
-            data = tcp_sock.recv(4096)
-            if not data:
-                break
-            
-            # Decode and forward to web client
+        # Set socket timeout to avoid indefinite blocking
+        # Use a reasonable timeout that allows for idle periods
+        tcp_sock.settimeout(30.0)  # 30 second timeout
+        
+        print(f"[TCP_RECEIVER] Started for session {session_id}")
+        
+        while connection_active:
             try:
-                message = data.decode('utf-8', errors='ignore').strip()
-                if message:
-                    # Check if it's a user list response
-                    if message.startswith('USERLIST:'):
-                        users_str = message[9:]  # Remove 'USERLIST:' prefix
-                        users = [u.strip() for u in users_str.split(',') if u.strip()]
-                        socketio.emit('user_list', {
-                            'users': users
-                        }, room=websocket_sid)
-                    else:
-                        # Regular chat message
-                        socketio.emit('chat_message', {
-                            'message': message,
-                            'timestamp': datetime.now().strftime('%H:%M:%S')
-                        }, room=websocket_sid)
+                data = tcp_sock.recv(4096)
+                if not data:
+                    # Empty data means socket was closed
+                    print(f"[TCP_RECEIVER] Socket closed for session {session_id}")
+                    connection_active = False
+                    break
+                
+                # Decode and forward to web client
+                try:
+                    message = data.decode('utf-8', errors='ignore').strip()
+                    if message:
+                        print(f"[TCP_RECEIVER] Received: {message[:100]}")  # Log first 100 chars
+                        # Check if it's a user list response
+                        if message.startswith('USERLIST:'):
+                            users_str = message[9:]  # Remove 'USERLIST:' prefix
+                            users = [u.strip() for u in users_str.split(',') if u.strip()]
+                            socketio.emit('user_list', {
+                                'users': users
+                            }, room=websocket_sid)
+                        else:
+                            # Regular chat message
+                            socketio.emit('chat_message', {
+                                'message': message,
+                                'timestamp': datetime.now().strftime('%H:%M:%S')
+                            }, room=websocket_sid)
+                except Exception as e:
+                    print(f"[TCP_RECEIVER] Error processing message: {e}")
+                    
+            except socket.timeout:
+                # Timeout is normal - just means no data for a while
+                # Continue waiting for data
+                continue
+                
             except Exception as e:
-                print(f"Error processing message: {e}")
+                print(f"[TCP_RECEIVER] Error in recv loop: {e}")
+                connection_active = False
+                break
                 
     except Exception as e:
-        print(f"TCP receiver error: {e}")
+        print(f"[TCP_RECEIVER] Fatal error: {e}")
+        connection_active = False
+        
     finally:
-        # Cleanup
+        # Cleanup - only notify client if connection was lost unexpectedly
+        print(f"[TCP_RECEIVER] Cleaning up session {session_id}")
         with connection_lock:
             if session_id in active_connections:
+                try:
+                    active_connections[session_id].close()
+                except:
+                    pass
                 del active_connections[session_id]
-        socketio.emit('disconnect_event', {
-            'message': 'Connection to server lost'
-        }, room=websocket_sid)
+        
+        # Only emit disconnect event if connection was active (not on normal shutdown)
+        if connection_active:
+            print(f"[TCP_RECEIVER] Notifying client of unexpected disconnect")
+            socketio.emit('disconnect_event', {
+                'message': 'Connection to server lost'
+            }, room=websocket_sid)
+        else:
+            print(f"[TCP_RECEIVER] Connection closed normally")
 
 
 @app.route('/')
