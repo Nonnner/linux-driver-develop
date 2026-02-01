@@ -324,7 +324,11 @@ void *handle_client(void *arg)
         if (strlen(buffer) > 0) {
             /* Format message with username */
             char formatted_msg[BUFFER_SIZE];
-            snprintf(formatted_msg, sizeof(formatted_msg), "[%s] %s\n", client->username, buffer);
+            /* Reserve space for "[username] \n" format (USERNAME_SIZE + 5 bytes) */
+            /* Limit message content to avoid truncation warning */
+            int max_msg_len = BUFFER_SIZE - USERNAME_SIZE - 5;
+            snprintf(formatted_msg, sizeof(formatted_msg), "[%s] %.*s\n", 
+                     client->username, max_msg_len, buffer);
             
             printf("Message from %s: %s\n", client->username, buffer);
             
