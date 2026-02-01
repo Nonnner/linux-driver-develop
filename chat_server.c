@@ -94,6 +94,30 @@ int init_crypto_driver(void)
     crypto_fd = open("/dev/crypto_dev", O_RDWR);
     if (crypto_fd < 0) {
         perror("Failed to open crypto device");
+        fprintf(stderr, "\n");
+        fprintf(stderr, "ERROR: Crypto device /dev/crypto_dev not found!\n");
+        fprintf(stderr, "\n");
+        fprintf(stderr, "The kernel module must be loaded before starting the server.\n");
+        fprintf(stderr, "\n");
+        fprintf(stderr, "To fix this issue, run these commands:\n");
+        fprintf(stderr, "\n");
+        fprintf(stderr, "  1. Build the kernel module (if not already built):\n");
+        fprintf(stderr, "     make -f Makefile.driver\n");
+        fprintf(stderr, "\n");
+        fprintf(stderr, "  2. Load the kernel module:\n");
+        fprintf(stderr, "     sudo insmod crypto_driver.ko\n");
+        fprintf(stderr, "\n");
+        fprintf(stderr, "  3. Set device permissions:\n");
+        fprintf(stderr, "     sudo chmod 666 /dev/crypto_dev\n");
+        fprintf(stderr, "\n");
+        fprintf(stderr, "  4. Verify the module is loaded:\n");
+        fprintf(stderr, "     lsmod | grep crypto_driver\n");
+        fprintf(stderr, "\n");
+        fprintf(stderr, "Or use the helper script:\n");
+        fprintf(stderr, "     sudo ./setup.sh load\n");
+        fprintf(stderr, "\n");
+        fprintf(stderr, "See QUICKSTART.md for detailed instructions.\n");
+        fprintf(stderr, "\n");
         return -1;
     }
     printf("Crypto driver opened successfully\n");
