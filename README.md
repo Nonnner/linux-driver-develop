@@ -6,6 +6,8 @@ Hệ thống chat nhiều người dùng (User A, User B, User C, …) trên Lin
 
 A secure multi-user TCP chat system on Linux that demonstrates kernel-space cryptography using a character device driver.
 
+**🆕 NEW: Web UI Available!** - Giờ đây có thể sử dụng qua giao diện web! See [Web UI Instructions](#-web-ui-giao-diện-web) below.
+
 ## ✨ Tính Năng (Features)
 
 - **Multi-user TCP chat**: Support for up to 100 concurrent users
@@ -14,6 +16,7 @@ A secure multi-user TCP chat system on Linux that demonstrates kernel-space cryp
 - **AES encryption**: Message encryption/decryption using AES-128
 - **Real-time messaging**: Instant message broadcasting to all authenticated users
 - **Thread-safe**: Multi-threaded server with proper synchronization
+- **🆕 Web Interface**: Beautiful web UI for browser-based chat
 
 ## 🏗️ Kiến Trúc Hệ Thống (System Architecture)
 
@@ -27,26 +30,28 @@ A secure multi-user TCP chat system on Linux that demonstrates kernel-space cryp
        │      Port 8888        │     Port 8888         │  8888
        └───────────────────────┼───────────────────────┘
                                │
-                      ┌────────▼────────┐
-                      │  Chat Server    │
-                      │  (User Space)   │
-                      │  - Auth users   │
-                      │  - Route msgs   │
-                      │  - Multi-thread │
-                      └────────┬────────┘
-                               │
-                      ioctl/read/write
-                      /dev/crypto_dev
-                               │
-                      ┌────────▼────────┐
-                      │ Crypto Driver   │
-                      │ (Kernel Space)  │
-                      │  - MD5 hash     │
-                      │  - AES encrypt  │
-                      │  - AES decrypt  │
-                      │  Linux Crypto   │
-                      │       API       │
-                      └─────────────────┘
+            🆕 Web Browser      │
+            (via WebSocket)    │
+                   │            │
+            ┌──────▼────────────▼──┐
+            │  Chat Server          │
+            │  (User Space)         │
+            │  - Auth users         │
+            │  - Route msgs         │
+            │  - Multi-thread       │
+            └──────────┬────────────┘
+                       │
+              ioctl/read/write
+              /dev/crypto_dev
+                       │
+            ┌──────────▼────────────┐
+            │  Crypto Driver        │
+            │  (Kernel Space)       │
+            │  - MD5 hash           │
+            │  - AES encrypt        │
+            │  - AES decrypt        │
+            │  Linux Crypto API     │
+            └───────────────────────┘
 ```
 
 ## 📋 Yêu Cầu Hệ Thống (System Requirements)
@@ -114,6 +119,45 @@ dmesg | tail  # Kiểm tra driver đã load
 # USERNAME: bob
 # PASSWORD: password456
 ```
+
+## 🌐 Web UI (Giao Diện Web)
+
+### 🆕 NEW: Browser-Based Chat Interface!
+
+Giờ đây có thể sử dụng hệ thống chat qua giao diện web đẹp mắt thay vì chỉ qua terminal!
+
+#### Quick Start Web UI
+
+**Terminal 1: Start TCP Server**
+```bash
+./chat_server
+```
+
+**Terminal 2: Start Web Backend**
+```bash
+# Install dependencies (first time only)
+make backend
+
+# Run web server
+make run-web
+```
+
+**Terminal 3: Open Browser**
+```
+http://localhost:5000
+```
+
+Login với username/password từ bảng demo accounts bên dưới!
+
+#### Web UI Features
+- 🎨 **Beautiful Modern UI** - Gradient design with animations
+- 💬 **Real-time Chat** - WebSocket for instant messaging
+- 👥 **User List** - See who's online
+- 📱 **Responsive** - Works on mobile and desktop
+- 🔐 **Secure** - Messages still encrypted via kernel driver
+
+#### Web UI Documentation
+Xem chi tiết tại: [WEB_UI_README.md](WEB_UI_README.md)
 
 ## 👥 Tài Khoản Demo (Demo Accounts)
 
