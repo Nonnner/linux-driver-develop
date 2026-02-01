@@ -285,6 +285,69 @@ void send_message_to_all(char *message, int sender_id)
     pthread_mutex_unlock(&clients_mutex);
 }
 
+/* Send user list to specific client */
+void send_user_list(int client_id)
+{
+    char user_list[BUFFER_SIZE];
+    int offset = 0;
+    
+    pthread_mutex_lock(&clients_mutex);
+    
+    offset = snprintf(user_list, sizeof(user_list), "USERLIST:");
+    
+    int first = 1;
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (clients[i] != NULL && clients[i]->authenticated) {
+            if (!first && offset < BUFFER_SIZE - 2) {
+                user_list[offset++] = ',';
+            }
+            first = 0;
+            
+            int len = strlen(clients[i]->username);
+            if (offset + len < BUFFER_SIZE - 2) {
+                strcpy(user_list + offset, clients[i]->username);
+                offset += len;
+            }
+        }
+    }
+    
+    if (offset < BUFFER_SIZE - 1) {
+        user_list[offset++] = '\n';
+        user_list[offset] = '\0';
+    }
+    
+    if (client_id >= 0 && client_id < MAX_CLIENTS && clients[client_id] != NULL) {
+        send(clients[client_id]->socket, user_list, strlen(user_list), 0);
+    }
+    
+    pthread_mutex_unlock(&clients_mutex);
+}
+
+/* Send private message to specific user */
+int send_private_message(const char *from_username, const char *to_username, const char *message)
+{
+    char formatted_msg[BUFFER_SIZE];
+    int sent = 0;
+    
+    snprintf(formatted_msg, sizeof(formatted_msg), "[PRIVATE from %s] %s\n", from_username, message);
+    
+    pthread_mutex_lock(&clients_mutex);
+    
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (clients[i] != NULL && clients[i]->authenticated && 
+            strcmp(clients[i]->username, to_username) == 0) {
+            if (send(clients[i]->socket, formatted_msg, strlen(formatted_msg), 0) >= 0) {
+                sent = 1;
+            }
+            break;
+        }
+    }
+    
+    pthread_mutex_unlock(&clients_mutex);
+    
+    return sent;
+}
+
 /* Handle client connection */
 void *handle_client(void *arg)
 {
@@ -344,18 +407,75 @@ void *handle_client(void *arg)
         buffer[strcspn(buffer, "\r\n")] = 0;
         
         if (strlen(buffer) > 0) {
-            /* Format message with username */
-            char formatted_msg[BUFFER_SIZE];
-            /* Reserve space for "[username] \n" format (USERNAME_SIZE + 5 bytes) */
-            /* Limit message content to avoid truncation warning */
-            int max_msg_len = BUFFER_SIZE - USERNAME_SIZE - 5;
-            snprintf(formatted_msg, sizeof(formatted_msg), "[%s] %.*s\n", 
-                     client->username, max_msg_len, buffer);
-            
-            printf("Message from %s: %s\n", client->username, buffer);
-            
-            /* Broadcast to all other authenticated clients */
-            send_message_to_all(formatted_msg, client->id);
+            /* Check for commands */
+            if (buffer[0] == '/') {
+                if (strcmp(buffer, "/list") == 0) {
+                    /* Send user list */
+                    printf("User %s requested user list\n", client->username);
+                    send_user_list(client->id);
+                } 
+                else if (strncmp(buffer, "/msg ", 5) == 0) {
+                    /* Private message: /msg <username> <message> */
+                    char target_user[USERNAME_SIZE];
+                    char *space_pos = strchr(buffer + 5, ' ');
+                    
+                    if (space_pos != NULL) {
+                        size_t username_len = space_pos - (buffer + 5);
+                        if (username_len >= USERNAME_SIZE) {
+                            username_len = USERNAME_SIZE - 1;
+                        }
+                        strncpy(target_user, buffer + 5, username_len);
+                        target_user[username_len] = '\0';
+                        
+                        char *msg_start = space_pos + 1;
+                        
+                        if (send_private_message(client->username, target_user, msg_start)) {
+                            printf("Private message from %s to %s: %s\n", 
+                                   client->username, target_user, msg_start);
+                            /* Confirm to sender - limit message length to avoid truncation */
+                            char confirm[BUFFER_SIZE];
+                            int max_confirm_len = BUFFER_SIZE - USERNAME_SIZE - 20;
+                            snprintf(confirm, sizeof(confirm), "[PRIVATE to %s] %.*s\n", 
+                                     target_user, max_confirm_len, msg_start);
+                            send(client->socket, confirm, strlen(confirm), 0);
+                        } else {
+                            char error_msg[] = "[SERVER] User not found or offline\n";
+                            send(client->socket, error_msg, strlen(error_msg), 0);
+                        }
+                    } else {
+                        char usage[] = "[SERVER] Usage: /msg <username> <message>\n";
+                        send(client->socket, usage, strlen(usage), 0);
+                    }
+                }
+                else if (strcmp(buffer, "/help") == 0) {
+                    /* Help command */
+                    const char *help_msg = 
+                        "[SERVER] Available commands:\n"
+                        "[SERVER]   /list - Show online users\n"
+                        "[SERVER]   /msg <username> <message> - Send private message\n"
+                        "[SERVER]   /help - Show this help\n"
+                        "[SERVER] Just type a message to broadcast to all users\n";
+                    send(client->socket, help_msg, strlen(help_msg), 0);
+                }
+                else {
+                    char error_msg[] = "[SERVER] Unknown command. Type /help for available commands\n";
+                    send(client->socket, error_msg, strlen(error_msg), 0);
+                }
+            } 
+            else {
+                /* Regular message - broadcast to all */
+                char formatted_msg[BUFFER_SIZE];
+                /* Reserve space for "[username] \n" format (USERNAME_SIZE + 5 bytes) */
+                /* Limit message content to avoid truncation warning */
+                int max_msg_len = BUFFER_SIZE - USERNAME_SIZE - 5;
+                snprintf(formatted_msg, sizeof(formatted_msg), "[%s] %.*s\n", 
+                         client->username, max_msg_len, buffer);
+                
+                printf("Message from %s: %s\n", client->username, buffer);
+                
+                /* Broadcast to all other authenticated clients */
+                send_message_to_all(formatted_msg, client->id);
+            }
         }
     }
     

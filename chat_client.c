@@ -124,9 +124,14 @@ int main(int argc, char *argv[])
         } else if (strstr(buffer, "AUTH_SUCCESS") != NULL) {
             printf("Authentication successful!\n");
             printf("================================================\n");
-            printf("You can now send messages. Type your message and press Enter.\n");
-            printf("Type 'quit' or 'exit' to disconnect.\n");
+            printf("Chat Commands:\n");
+            printf("  /list              - Show online users\n");
+            printf("  /msg <user> <msg>  - Send private message\n");
+            printf("  /help              - Show help\n");
+            printf("  <message>          - Broadcast to all\n");
+            printf("  quit or exit       - Disconnect\n");
             printf("================================================\n");
+            printf("You can start chatting now. Type /help for commands.\n");
         }
     }
     
