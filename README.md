@@ -280,6 +280,21 @@ lsmod | grep crypto_driver  # Kiểm tra module đã load
 ls -l /dev/crypto_dev    # Kiểm tra device file
 ```
 
+### "Connection lost" sau khi đăng nhập (After Login)
+
+**Lỗi:** "Connection to server lost" ngay sau khi login thành công.
+
+**Giải pháp:** Issue đã được fix! Xem chi tiết:
+- 🇻🇳 [CONNECTION_LOST_FIX_VI.md](CONNECTION_LOST_FIX_VI.md) - Giải thích chi tiết bằng tiếng Việt
+- 🇬🇧 [CONNECTION_FIX_SUMMARY.md](CONNECTION_FIX_SUMMARY.md) - Technical summary in English
+
+**Quick fix:** Restart web backend với version mới:
+```bash
+make run-web
+```
+
+---
+
 Xem [TROUBLESHOOTING.md](TROUBLESHOOTING.md) để biết chi tiết và các vấn đề khác.
 
 **🇻🇳 Hướng dẫn tiếng Việt:** [VIETNAMESE_TROUBLESHOOTING.md](VIETNAMESE_TROUBLESHOOTING.md) - Complete Vietnamese troubleshooting guide!
