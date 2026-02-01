@@ -45,11 +45,44 @@ def connect_to_tcp_server():
     """Create connection to TCP chat server"""
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(10)  # 10 second timeout for operations
         sock.connect((TCP_SERVER_HOST, TCP_SERVER_PORT))
         return sock
     except Exception as e:
         print(f"Failed to connect to TCP server: {e}")
         return None
+
+
+def recv_until(sock, expected_text, max_bytes=1024, timeout=5):
+    """Receive data until expected text is found or timeout"""
+    buffer = b''
+    start_time = time.time()
+    
+    while time.time() - start_time < timeout:
+        try:
+            sock.settimeout(1)
+            chunk = sock.recv(max_bytes)
+            if not chunk:
+                break
+            buffer += chunk
+            
+            # Check if we received the expected text
+            decoded = buffer.decode('utf-8', errors='ignore')
+            if expected_text in decoded:
+                return decoded
+                
+        except socket.timeout:
+            # Check what we have so far
+            decoded = buffer.decode('utf-8', errors='ignore')
+            if expected_text in decoded:
+                return decoded
+            continue
+        except Exception as e:
+            print(f"recv_until error: {e}")
+            break
+    
+    # Return whatever we got
+    return buffer.decode('utf-8', errors='ignore')
 
 
 def tcp_receiver(session_id, tcp_sock, websocket_sid):
@@ -121,10 +154,11 @@ def handle_login(data):
     username = data.get('username', '').strip()
     password = data.get('password', '').strip()
     
-    print(f"Login attempt: {username}")
+    print(f"[LOGIN] Attempt from user: {username}")
     
     # Validate credentials
     if username not in DEMO_USERS or DEMO_USERS[username] != password:
+        print(f"[LOGIN] Invalid credentials for: {username}")
         emit('login_response', {
             'success': False,
             'message': 'Invalid username or password'
@@ -134,23 +168,40 @@ def handle_login(data):
     # Connect to TCP server
     tcp_sock = connect_to_tcp_server()
     if not tcp_sock:
+        print(f"[LOGIN] Failed to connect to TCP server")
         emit('login_response', {
             'success': False,
-            'message': 'Failed to connect to chat server'
+            'message': 'Failed to connect to chat server. Make sure the server is running.'
         })
         return
     
     try:
-        # Send username
-        tcp_sock.recv(1024)  # Receive "USERNAME: " prompt
+        print(f"[LOGIN] Connected to TCP server, starting authentication...")
+        
+        # Wait for and send username
+        prompt = recv_until(tcp_sock, "USERNAME:", timeout=3)
+        print(f"[LOGIN] Received prompt: {repr(prompt[:50])}")
+        
+        if "USERNAME:" not in prompt:
+            raise Exception("Did not receive USERNAME prompt")
+        
+        print(f"[LOGIN] Sending username: {username}")
         tcp_sock.sendall(f"{username}\n".encode())
         
-        # Send password
-        tcp_sock.recv(1024)  # Receive "PASSWORD: " prompt
+        # Wait for and send password
+        prompt = recv_until(tcp_sock, "PASSWORD:", timeout=3)
+        print(f"[LOGIN] Received prompt: {repr(prompt[:50])}")
+        
+        if "PASSWORD:" not in prompt:
+            raise Exception("Did not receive PASSWORD prompt")
+            
+        print(f"[LOGIN] Sending password")
         tcp_sock.sendall(f"{password}\n".encode())
         
         # Receive authentication result
-        auth_result = tcp_sock.recv(1024).decode('utf-8')
+        print(f"[LOGIN] Waiting for authentication result...")
+        auth_result = recv_until(tcp_sock, "AUTH_", timeout=5)
+        print(f"[LOGIN] Auth result: {repr(auth_result[:100])}")
         
         if 'AUTH_SUCCESS' in auth_result:
             # Store session
@@ -160,6 +211,8 @@ def handle_login(data):
             
             with connection_lock:
                 active_connections[session_id] = tcp_sock
+            
+            print(f"[LOGIN] User {username} authenticated successfully")
             
             # Start receiver thread
             receiver_thread = threading.Thread(
@@ -174,8 +227,9 @@ def handle_login(data):
                 'username': username,
                 'message': f'Welcome, {username}!'
             })
-            print(f"User {username} logged in successfully")
+            print(f"[LOGIN] Login response sent to client")
         else:
+            print(f"[LOGIN] Authentication failed for {username}")
             tcp_sock.close()
             emit('login_response', {
                 'success': False,
@@ -183,7 +237,9 @@ def handle_login(data):
             })
             
     except Exception as e:
-        print(f"Login error: {e}")
+        print(f"[LOGIN] Error during login: {e}")
+        import traceback
+        traceback.print_exc()
         try:
             tcp_sock.close()
         except:

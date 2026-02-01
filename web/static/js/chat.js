@@ -52,19 +52,41 @@ document.getElementById('login-form').addEventListener('submit', function(e) {
         return;
     }
     
-    // Clear previous error
+    // Clear previous error and show loading
     hideLoginError();
+    const submitBtn = this.querySelector('button[type="submit"]');
+    const originalText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Logging in...';
+    
+    console.log('Sending login request for:', username);
     
     // Send login request
     socket.emit('login', {
         username: username,
         password: password
     });
+    
+    // Re-enable button after timeout
+    setTimeout(function() {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+    }, 10000);
 });
 
 // Handle login response
 function handleLoginResponse(data) {
+    console.log('Login response received:', data);
+    
+    // Re-enable login button
+    const submitBtn = document.querySelector('#login-form button[type="submit"]');
+    if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Login';
+    }
+    
     if (data.success) {
+        console.log('Login successful for:', data.username);
         currentUsername = data.username;
         
         // Hide login screen, show chat screen
@@ -83,7 +105,10 @@ function handleLoginResponse(data) {
         
         // Focus on message input
         document.getElementById('message-input').focus();
+        
+        console.log('Switched to chat interface');
     } else {
+        console.log('Login failed:', data.message);
         showLoginError(data.message);
     }
 }
