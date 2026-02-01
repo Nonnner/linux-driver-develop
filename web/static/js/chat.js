@@ -117,21 +117,40 @@ function handleLoginResponse(data) {
 function handleChatMessage(data) {
     const message = data.message;
     
-    // Parse message format: "[username] message" or "[SERVER] message"
-    const match = message.match(/^\[([^\]]+)\]\s*(.*)$/);
-    
-    if (match) {
-        const sender = match[1];
-        const text = match[2];
-        
-        if (sender === 'SERVER') {
-            addSystemMessage(text);
-        } else {
-            addMessage(sender, text, data.timestamp, sender === currentUsername);
+    // Parse different message formats
+    if (message.startsWith('[PRIVATE from ')) {
+        // Private message received: [PRIVATE from alice] message
+        const match = message.match(/^\[PRIVATE from ([^\]]+)\]\s*(.*)$/);
+        if (match) {
+            const sender = match[1];
+            const text = match[2];
+            addPrivateMessage(sender, text, data.timestamp, false);
+        }
+    } else if (message.startsWith('[PRIVATE to ')) {
+        // Private message sent confirmation: [PRIVATE to bob] message
+        const match = message.match(/^\[PRIVATE to ([^\]]+)\]\s*(.*)$/);
+        if (match) {
+            const recipient = match[1];
+            const text = match[2];
+            addPrivateMessage(recipient, text, data.timestamp, true);
         }
     } else {
-        // If format doesn't match, show as system message
-        addSystemMessage(message);
+        // Regular message: "[username] message" or "[SERVER] message"
+        const match = message.match(/^\[([^\]]+)\]\s*(.*)$/);
+        
+        if (match) {
+            const sender = match[1];
+            const text = match[2];
+            
+            if (sender === 'SERVER') {
+                addSystemMessage(text);
+            } else {
+                addMessage(sender, text, data.timestamp, sender === currentUsername);
+            }
+        } else {
+            // If format doesn't match, show as system message
+            addSystemMessage(message);
+        }
     }
 }
 
@@ -146,10 +165,19 @@ document.getElementById('message-form').addEventListener('submit', function(e) {
         return;
     }
     
-    // Send message to server
-    socket.emit('send_message', {
-        message: message
-    });
+    // Check if sending private message
+    if (selectedUser) {
+        // Send private message
+        socket.emit('send_private_message', {
+            target_user: selectedUser,
+            message: message
+        });
+    } else {
+        // Send broadcast message
+        socket.emit('send_message', {
+            message: message
+        });
+    }
     
     // Clear input
     messageInput.value = '';
@@ -249,15 +277,112 @@ function addSystemMessage(text) {
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
 
+function addPrivateMessage(otherUser, text, timestamp, isSent) {
+    const messagesDiv = document.getElementById('messages');
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message private' + (isSent ? ' own' : '');
+    
+    const messageContent = document.createElement('div');
+    messageContent.className = 'message-content';
+    
+    const senderDiv = document.createElement('div');
+    senderDiv.className = 'message-sender';
+    senderDiv.textContent = isSent ? `Private to ${otherUser}` : `Private from ${otherUser}`;
+    senderDiv.style.fontStyle = 'italic';
+    senderDiv.style.fontSize = '0.85em';
+    senderDiv.style.color = '#9333ea';
+    messageContent.appendChild(senderDiv);
+    
+    const textDiv = document.createElement('div');
+    textDiv.className = 'message-text';
+    textDiv.textContent = text;
+    messageContent.appendChild(textDiv);
+    
+    const timeDiv = document.createElement('div');
+    timeDiv.className = 'message-time';
+    timeDiv.textContent = timestamp || new Date().toLocaleTimeString();
+    messageContent.appendChild(timeDiv);
+    
+    messageDiv.appendChild(messageContent);
+    messagesDiv.appendChild(messageDiv);
+    
+    // Clear float
+    const clearDiv = document.createElement('div');
+    clearDiv.style.clear = 'both';
+    messagesDiv.appendChild(clearDiv);
+    
+    // Scroll to bottom
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+// Global variable to track selected user for private chat
+let selectedUser = null;
+
 function updateUserList(users) {
     const userListDiv = document.getElementById('user-list');
     
     // Keep current user at top
     const currentUserHtml = `
-        <div class="user-item">
+        <div class="user-item current-user">
             <span class="user-status online"></span>
             <span>${currentUsername} (you)</span>
         </div>
+    `;
+    
+    // Other users
+    let otherUsersHtml = '<div style="margin-top: 10px; font-size: 0.9em; color: #666; padding: 5px;">Online Users (click to chat):</div>';
+    users.forEach(user => {
+        if (user !== currentUsername) {
+            const isSelected = user === selectedUser;
+            otherUsersHtml += `
+                <div class="user-item ${isSelected ? 'selected' : ''}" data-username="${user}" onclick="selectUser('${user}')">
+                    <span class="user-status online"></span>
+                    <span>${user}</span>
+                </div>
+            `;
+        }
+    });
+    
+    userListDiv.innerHTML = currentUserHtml + otherUsersHtml;
+}
+
+// Select user for private chat
+function selectUser(username) {
+    selectedUser = username;
+    console.log('Selected user for private chat:', username);
+    
+    // Update UI to show selection
+    document.querySelectorAll('.user-item').forEach(item => {
+        item.classList.remove('selected');
+    });
+    const selectedItem = document.querySelector(`[data-username="${username}"]`);
+    if (selectedItem) {
+        selectedItem.classList.add('selected');
+    }
+    
+    // Update message input placeholder
+    const messageInput = document.getElementById('message-input');
+    messageInput.placeholder = `Private message to ${username}...`;
+    messageInput.focus();
+    
+    // Show info message
+    addSystemMessage(`Now chatting privately with ${username}. Type a message or click another user to switch.`);
+}
+
+// Add button to clear selection and broadcast to all
+function clearUserSelection() {
+    selectedUser = null;
+    document.querySelectorAll('.user-item').forEach(item => {
+        item.classList.remove('selected');
+    });
+    const messageInput = document.getElementById('message-input');
+    messageInput.placeholder = 'Type a message...';
+    addSystemMessage('Broadcasting to all users now.');
+}
+
+// Make selectUser available globally
+window.selectUser = selectUser;
     `;
     
     const otherUsersHtml = users

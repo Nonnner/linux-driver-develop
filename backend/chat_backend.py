@@ -98,11 +98,19 @@ def tcp_receiver(session_id, tcp_sock, websocket_sid):
             try:
                 message = data.decode('utf-8', errors='ignore').strip()
                 if message:
-                    # Send to specific web client
-                    socketio.emit('chat_message', {
-                        'message': message,
-                        'timestamp': datetime.now().strftime('%H:%M:%S')
-                    }, room=websocket_sid)
+                    # Check if it's a user list response
+                    if message.startswith('USERLIST:'):
+                        users_str = message[9:]  # Remove 'USERLIST:' prefix
+                        users = [u.strip() for u in users_str.split(',') if u.strip()]
+                        socketio.emit('user_list', {
+                            'users': users
+                        }, room=websocket_sid)
+                    else:
+                        # Regular chat message
+                        socketio.emit('chat_message', {
+                            'message': message,
+                            'timestamp': datetime.now().strftime('%H:%M:%S')
+                        }, room=websocket_sid)
             except Exception as e:
                 print(f"Error processing message: {e}")
                 
@@ -278,6 +286,68 @@ def handle_send_message(data):
         print(f"Message from {username}: {message}")
     except Exception as e:
         print(f"Error sending message: {e}")
+        emit('error', {'message': 'Failed to send message'})
+
+
+@socketio.on('request_user_list')
+def handle_request_user_list():
+    """Handle request for user list"""
+    session_id = session.get('session_id')
+    username = session.get('username')
+    
+    if not session_id or not username:
+        emit('error', {'message': 'Not logged in'})
+        return
+    
+    # Get TCP connection
+    with connection_lock:
+        tcp_sock = active_connections.get(session_id)
+    
+    if not tcp_sock:
+        emit('error', {'message': 'Connection lost'})
+        return
+    
+    try:
+        # Send /list command to TCP server
+        tcp_sock.sendall(b"/list\n")
+        print(f"User {username} requested user list")
+    except Exception as e:
+        print(f"Error requesting user list: {e}")
+        emit('error', {'message': 'Failed to get user list'})
+
+
+@socketio.on('send_private_message')
+def handle_send_private_message(data):
+    """Handle sending a private message"""
+    target_user = data.get('target_user', '').strip()
+    message = data.get('message', '').strip()
+    session_id = session.get('session_id')
+    username = session.get('username')
+    
+    if not session_id or not username:
+        emit('error', {'message': 'Not logged in'})
+        return
+    
+    if not target_user or not message:
+        emit('error', {'message': 'Target user and message required'})
+        return
+    
+    # Get TCP connection
+    with connection_lock:
+        tcp_sock = active_connections.get(session_id)
+    
+    if not tcp_sock:
+        emit('error', {'message': 'Connection lost'})
+        return
+    
+    try:
+        # Send /msg command to TCP server
+        private_msg = f"/msg {target_user} {message}\n"
+        tcp_sock.sendall(private_msg.encode())
+        print(f"Private message from {username} to {target_user}: {message}")
+    except Exception as e:
+        print(f"Error sending private message: {e}")
+        emit('error', {'message': 'Failed to send private message'})
         emit('error', {'message': 'Failed to send message'})
 
 

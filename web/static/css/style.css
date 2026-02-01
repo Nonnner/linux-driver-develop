@@ -214,6 +214,35 @@ body {
     align-items: center;
     gap: 10px;
     font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.user-item:hover {
+    background: #e8e8ff;
+    transform: translateX(3px);
+}
+
+.user-item.selected {
+    background: #9333ea;
+    color: white;
+    box-shadow: 0 2px 8px rgba(147, 51, 234, 0.3);
+    font-weight: 600;
+}
+
+.user-item.selected .user-status {
+    background: white;
+}
+
+.user-item.current-user {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    font-weight: 600;
+    cursor: default;
+}
+
+.user-item.current-user:hover {
+    transform: none;
 }
 
 .user-status {
@@ -383,4 +412,15 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
     background: #555;
+}
+
+/* Private message styling */
+.message.private .message-content {
+    background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
+    border: 2px solid #9333ea;
+}
+
+.message.private.own .message-content {
+    background: linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 100%);
+    border: 2px solid #667eea;
 }
