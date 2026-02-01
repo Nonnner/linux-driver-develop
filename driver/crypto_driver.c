@@ -16,6 +16,7 @@
 #include <linux/device.h>
 #include <linux/uaccess.h>
 #include <linux/slab.h>
+#include <linux/version.h>
 #include <crypto/hash.h>
 #include <crypto/skcipher.h>
 #include <linux/scatterlist.h>
@@ -426,7 +427,12 @@ static int __init crypto_driver_init(void)
         return major_number;
     }
 
+    /* Create device class - API changed in kernel 6.4+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
+    crypto_class = class_create(CLASS_NAME);
+#else
     crypto_class = class_create(THIS_MODULE, CLASS_NAME);
+#endif
     if (IS_ERR(crypto_class)) {
         unregister_chrdev(major_number, DEVICE_NAME);
         return PTR_ERR(crypto_class);

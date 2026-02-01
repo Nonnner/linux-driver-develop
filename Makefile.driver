@@ -1,17 +1,33 @@
 # Makefile for crypto kernel module
-obj-m += crypto_driver.o
+# Builds the enhanced driver from driver/ subdirectory
 
+DRIVER_DIR := driver
 KDIR := /lib/modules/$(shell uname -r)/build
 PWD := $(shell pwd)
 
 all:
-	$(MAKE) -C $(KDIR) M=$(PWD) modules
+	@echo "Building kernel module from $(DRIVER_DIR)/ directory..."
+	$(MAKE) -C $(KDIR) M=$(PWD)/$(DRIVER_DIR) modules
+	@if [ -f $(DRIVER_DIR)/crypto_driver.ko ]; then \
+		cp $(DRIVER_DIR)/crypto_driver.ko . ; \
+		echo "Module built successfully: crypto_driver.ko"; \
+		ls -lh crypto_driver.ko; \
+	else \
+		echo "ERROR: Module build failed - crypto_driver.ko not found"; \
+		exit 1; \
+	fi
 
 clean:
-	$(MAKE) -C $(KDIR) M=$(PWD) clean
+	$(MAKE) -C $(KDIR) M=$(PWD)/$(DRIVER_DIR) clean
+	rm -f crypto_driver.ko
 
 install:
+	@if [ ! -f crypto_driver.ko ]; then \
+		echo "Module not found. Building first..."; \
+		$(MAKE) all; \
+	fi
 	sudo insmod crypto_driver.ko
+	sudo chmod 666 /dev/crypto_dev
 
 uninstall:
 	sudo rmmod crypto_driver
