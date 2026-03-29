@@ -79,8 +79,11 @@ void remove_client(int id);
 void send_message_to_all(char *message, int sender_id);
 int authenticate_user(const char *username, const char *password);
 int md5_hash(const unsigned char *input, unsigned int len, unsigned char *output);
-int aes_encrypt_msg(const unsigned char *plaintext, unsigned int len, unsigned char *ciphertext, unsigned int *out_len);
-int aes_decrypt_msg(const unsigned char *ciphertext, unsigned int len, unsigned char *plaintext);
+int aes_encrypt_msg(const unsigned char *plaintext, unsigned int len, unsigned char *ciphertext,
+                    unsigned int *out_len, unsigned char *out_iv);
+int aes_decrypt_msg(const unsigned char *ciphertext, unsigned int len, const unsigned char *iv,
+                    unsigned char *plaintext, unsigned int *out_len);
+int crypto_process_chat_message(const char *input, char *output, size_t output_size);
 void init_user_database(void);
 
 /* Initialize crypto driver */
@@ -115,6 +118,14 @@ int init_crypto_driver(void)
         fprintf(stderr, "\n");
         return -1;
     }
+
+    if (ioctl(crypto_fd, IOCTL_SET_KEY, aes_key) < 0) {
+        perror("Failed to set AES key in crypto driver session");
+        close(crypto_fd);
+        crypto_fd = -1;
+        return -1;
+    }
+
     printf("Crypto driver opened successfully\n");
     return 0;
 }
@@ -153,7 +164,8 @@ int md5_hash(const unsigned char *input, unsigned int len, unsigned char *output
 }
 
 /* AES encrypt using driver */
-int aes_encrypt_msg(const unsigned char *plaintext, unsigned int len, unsigned char *ciphertext, unsigned int *out_len)
+int aes_encrypt_msg(const unsigned char *plaintext, unsigned int len, unsigned char *ciphertext,
+                    unsigned int *out_len, unsigned char *out_iv)
 {
     struct crypto_data data;
     memset(&data, 0, sizeof(data));
@@ -174,12 +186,14 @@ int aes_encrypt_msg(const unsigned char *plaintext, unsigned int len, unsigned c
     }
     
     memcpy(ciphertext, data.output, data.output_len);
+    memcpy(out_iv, data.iv, AES_KEY_SIZE);
     *out_len = data.output_len;
     return 0;
 }
 
 /* AES decrypt using driver */
-int aes_decrypt_msg(const unsigned char *ciphertext, unsigned int len, unsigned char *plaintext)
+int aes_decrypt_msg(const unsigned char *ciphertext, unsigned int len, const unsigned char *iv,
+                    unsigned char *plaintext, unsigned int *out_len)
 {
     struct crypto_data data;
     memset(&data, 0, sizeof(data));
@@ -192,6 +206,7 @@ int aes_decrypt_msg(const unsigned char *ciphertext, unsigned int len, unsigned 
     memcpy(data.input, ciphertext, len);
     data.input_len = len;
     memcpy(data.key, aes_key, AES_KEY_SIZE);
+    memcpy(data.iv, iv, AES_KEY_SIZE);
     
     /* Use correct IOCTL command from crypto_user.h */
     if (ioctl(crypto_fd, IOCTL_DECRYPT, &data) < 0) {
@@ -200,6 +215,43 @@ int aes_decrypt_msg(const unsigned char *ciphertext, unsigned int len, unsigned 
     }
     
     memcpy(plaintext, data.output, data.output_len);
+    *out_len = data.output_len;
+    return 0;
+}
+
+/* Process user message through kernel AES pipeline (encrypt + decrypt) */
+int crypto_process_chat_message(const char *input, char *output, size_t output_size)
+{
+    unsigned char encrypted[MAX_DATA_SIZE];
+    unsigned char decrypted[MAX_DATA_SIZE];
+    unsigned char iv[AES_KEY_SIZE];
+    unsigned int encrypted_len = 0;
+    unsigned int decrypted_len = 0;
+    size_t input_len = strlen(input);
+
+    if (output_size == 0 || input_len == 0 || input_len > MAX_DATA_SIZE) {
+        return -1;
+    }
+
+    if (aes_encrypt_msg((const unsigned char *)input, (unsigned int)input_len,
+                        encrypted, &encrypted_len, iv) < 0) {
+        return -1;
+    }
+
+    if (aes_decrypt_msg(encrypted, encrypted_len, iv, decrypted, &decrypted_len) < 0) {
+        return -1;
+    }
+
+    if (decrypted_len < input_len) {
+        return -1;
+    }
+
+    if (input_len >= output_size) {
+        input_len = output_size - 1;
+    }
+
+    memcpy(output, decrypted, input_len);
+    output[input_len] = '\0';
     return 0;
 }
 
@@ -417,6 +469,7 @@ void *handle_client(void *arg)
                 else if (strncmp(buffer, "/msg ", 5) == 0) {
                     /* Private message: /msg <username> <message> */
                     char target_user[USERNAME_SIZE];
+                    char processed_private[BUFFER_SIZE];
                     char *space_pos = strchr(buffer + 5, ' ');
                     
                     if (space_pos != NULL) {
@@ -428,15 +481,22 @@ void *handle_client(void *arg)
                         target_user[username_len] = '\0';
                         
                         char *msg_start = space_pos + 1;
+
+                        if (crypto_process_chat_message(msg_start, processed_private,
+                                                        sizeof(processed_private)) < 0) {
+                            char crypto_err[] = "[SERVER] Failed to process message via AES driver\n";
+                            send(client->socket, crypto_err, strlen(crypto_err), 0);
+                            continue;
+                        }
                         
-                        if (send_private_message(client->username, target_user, msg_start)) {
+                        if (send_private_message(client->username, target_user, processed_private)) {
                             printf("Private message from %s to %s: %s\n", 
-                                   client->username, target_user, msg_start);
+                                   client->username, target_user, processed_private);
                             /* Confirm to sender - limit message length to avoid truncation */
                             char confirm[BUFFER_SIZE];
                             int max_confirm_len = BUFFER_SIZE - USERNAME_SIZE - 20;
                             snprintf(confirm, sizeof(confirm), "[PRIVATE to %s] %.*s\n", 
-                                     target_user, max_confirm_len, msg_start);
+                                     target_user, max_confirm_len, processed_private);
                             send(client->socket, confirm, strlen(confirm), 0);
                         } else {
                             char error_msg[] = "[SERVER] User not found or offline\n";
@@ -465,13 +525,21 @@ void *handle_client(void *arg)
             else {
                 /* Regular message - broadcast to all */
                 char formatted_msg[BUFFER_SIZE];
+                char processed_msg[BUFFER_SIZE];
+
+                if (crypto_process_chat_message(buffer, processed_msg, sizeof(processed_msg)) < 0) {
+                    char crypto_err[] = "[SERVER] Failed to process message via AES driver\n";
+                    send(client->socket, crypto_err, strlen(crypto_err), 0);
+                    continue;
+                }
+
                 /* Reserve space for "[username] \n" format (USERNAME_SIZE + 5 bytes) */
                 /* Limit message content to avoid truncation warning */
                 int max_msg_len = BUFFER_SIZE - USERNAME_SIZE - 5;
                 snprintf(formatted_msg, sizeof(formatted_msg), "[%s] %.*s\n", 
-                         client->username, max_msg_len, buffer);
+                         client->username, max_msg_len, processed_msg);
                 
-                printf("Message from %s: %s\n", client->username, buffer);
+                printf("Message from %s: %s\n", client->username, processed_msg);
                 
                 /* Broadcast to all other authenticated clients */
                 send_message_to_all(formatted_msg, client->id);

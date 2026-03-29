@@ -1,5 +1,6 @@
-# Makefile for enhanced crypto kernel module
+# Makefile for enhanced crypto kernel module and USB keyboard monitor
 obj-m += crypto_driver.o
+obj-m += usb_kbd_monitor.o
 
 KDIR := /lib/modules/$(shell uname -r)/build
 PWD := $(shell pwd)

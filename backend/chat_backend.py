@@ -18,7 +18,17 @@ app = Flask(__name__,
             template_folder='../web/templates',
             static_folder='../web/static')
 app.config['SECRET_KEY'] = 'your-secret-key-change-in-production'
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+
+# Prefer eventlet when available, but gracefully fall back for Python/runtime combos
+# where eventlet is not compatible (e.g. some Python 3.12 environments).
+async_mode = 'threading'
+try:
+    import eventlet  # noqa: F401
+    async_mode = 'eventlet'
+except Exception:
+    pass
+
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode=async_mode)
 
 # Configuration
 TCP_SERVER_HOST = '127.0.0.1'

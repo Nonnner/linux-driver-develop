@@ -6,20 +6,32 @@ KDIR := /lib/modules/$(shell uname -r)/build
 PWD := $(shell pwd)
 
 all:
-	@echo "Building kernel module from $(DRIVER_DIR)/ directory..."
+	@echo "Building kernel modules from $(DRIVER_DIR)/ directory..."
 	$(MAKE) -C $(KDIR) M=$(PWD)/$(DRIVER_DIR) modules
+	@echo "Copying built modules to root directory..."
 	@if [ -f $(DRIVER_DIR)/crypto_driver.ko ]; then \
 		cp $(DRIVER_DIR)/crypto_driver.ko . ; \
-		echo "Module built successfully: crypto_driver.ko"; \
-		ls -lh crypto_driver.ko; \
+		echo "✓ crypto_driver.ko"; \
 	else \
-		echo "ERROR: Module build failed - crypto_driver.ko not found"; \
+		echo "⚠ crypto_driver.ko not found"; \
+	fi
+	@if [ -f $(DRIVER_DIR)/usb_kbd_monitor.ko ]; then \
+		cp $(DRIVER_DIR)/usb_kbd_monitor.ko . ; \
+		echo "✓ usb_kbd_monitor.ko"; \
+	else \
+		echo "⚠ usb_kbd_monitor.ko not found"; \
+	fi
+	@if [ -f crypto_driver.ko ] || [ -f usb_kbd_monitor.ko ]; then \
+		echo "Module build completed successfully"; \
+		ls -lh *.ko 2>/dev/null || true; \
+	else \
+		echo "ERROR: Module build failed - no .ko files found"; \
 		exit 1; \
 	fi
 
 clean:
 	$(MAKE) -C $(KDIR) M=$(PWD)/$(DRIVER_DIR) clean
-	rm -f crypto_driver.ko
+	rm -f crypto_driver.ko usb_kbd_monitor.ko
 
 install:
 	@if [ ! -f crypto_driver.ko ]; then \
