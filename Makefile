@@ -1,6 +1,6 @@
 # Makefile for chat server and client
 CC = gcc
-CFLAGS = -Wall -Wextra -pthread -O2
+CFLAGS = -std=gnu99 -Wall -Wextra -pthread -O2
 LDFLAGS = -pthread
 VENV_DIR = .venv
 VENV_PYTHON = $(VENV_DIR)/bin/python
