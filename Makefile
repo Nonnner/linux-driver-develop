@@ -98,6 +98,8 @@ driver-reload-kbd:
 	@echo "Reloading USB keyboard monitor module..."
 	@$(MAKE) driver-unload-kbd
 	@$(MAKE) driver-load-kbd
+
+clean:
 	rm -f chat_server chat_client
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true
